@@ -3,7 +3,7 @@
 #
 # Por defeito: framework-dependent + single-file (~230 KB exe + pdbs).
 #   O PC alvo precisa de ".NET 8 Desktop Runtime" (Windows x64).
-# Para bundle com runtime .NET (~70 MB exe autocontido):
+# Para bundle com runtime .NET (~70 MB exe autocontido; usa -p:SelfContained=true):
 #   powershell -File installer\build-installer.ps1 -SelfContained
 
 param(
@@ -24,7 +24,7 @@ if ($SelfContained) {
   dotnet publish "src/SmoothMice.App/SmoothMice.App.csproj" `
     -c Release `
     -r win-x64 `
-    --self-contained true `
+    -p:SelfContained=true `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `
@@ -34,7 +34,7 @@ else {
   dotnet publish "src/SmoothMice.App/SmoothMice.App.csproj" `
     -c Release `
     -r win-x64 `
-    --self-contained false `
+    -p:SelfContained=false `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:PublishDebugSymbols=false

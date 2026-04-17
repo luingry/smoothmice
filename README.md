@@ -32,10 +32,10 @@ Run the WPF app:
 dotnet run --project src/SmoothMice.App/SmoothMice.App.csproj -c Release
 ```
 
-Self-contained publish (for installer payload):
+Self-contained publish (for installer payload). In Git Bash, prefer explicit MSBuild properties (`--self-contained true` alone can miss bundling the runtime):
 
 ```bash
-dotnet publish src/SmoothMice.App/SmoothMice.App.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
+dotnet publish src/SmoothMice.App/SmoothMice.App.csproj -c Release -r win-x64 -p:SelfContained=true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
 Published binaries default to `src/SmoothMice.App/bin/Release/net8.0-windows/win-x64/publish/`.
@@ -67,9 +67,11 @@ dotnet test SmoothMice.sln -c Release
 
 Or double-click `installer\build-installer.cmd` (opens a window; pauses at the end).
 
-**Default publish (small installer, ~99% smaller than self-contained):** framework-dependent, single-file `SmoothMice.exe` (~0.2 MB). The target PC must have **[.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/8.0)** installed (pick “Desktop Runtime”, not only “Runtime”).
+**GitHub Releases** ship the **self-contained** installer (`SmoothMice_Setup_*.exe`, ~64 MB): no separate .NET install on the target PC.
 
-**Portable / offline machine (large exe ~70 MB):** bundle the .NET runtime into the executable:
+**Local default (small installer):** framework-dependent, single-file `SmoothMice.exe` (~0.2 MB). The target PC must have **[.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/8.0)** installed (pick “Desktop Runtime”, not only “Runtime”).
+
+**Self-contained installer (same as release asset):** bundles the .NET runtime:
 
 ```powershell
 .\installer\build-installer.ps1 -SelfContained
