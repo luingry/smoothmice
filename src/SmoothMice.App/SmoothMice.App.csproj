@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>SmoothMice.App</RootNamespace>
+    <AssemblyName>SmoothMice</AssemblyName>
+    <ApplicationIcon />
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SmoothMice.Core\SmoothMice.Core.csproj" />
+    <ProjectReference Include="..\SmoothMice.Infrastructure\SmoothMice.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>SmoothMice.Infrastructure</RootNamespace>
+    <AssemblyName>SmoothMice.Infrastructure</AssemblyName>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SmoothMice.Core\SmoothMice.Core.csproj" />
+  </ItemGroup>
+</Project>
