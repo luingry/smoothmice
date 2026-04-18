@@ -4,6 +4,12 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 0.3.8 — 2026-04-18
+
+### Alterações
+
+- **Distribuição:** GitHub Release com instalador **0.3.8**; inclui o que estava em **0.3.7** (correção OTA + janela de definições após `/tray`).
+
 ## 0.3.7 — 2026-04-18
 
 ### Alterações
