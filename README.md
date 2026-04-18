@@ -2,6 +2,8 @@
 
 Windows-only desktop utility that smooths mouse wheel scrolling with per-application profiles, system tray controls, and JSON settings under `%AppData%\SmoothMice\settings.json`.
 
+**Open source:** the full source is on GitHub. Anyone can **fork** the repo, **edit** the code, and ship **their own build** or forked variant (respect the license file in the repository). Pull requests and issues are welcome if you want changes upstream.
+
 ## App preview (my profile)
 
 ![SmoothMice — my profile](docs/myProfile.png)
@@ -81,7 +83,8 @@ Manual steps: `dotnet publish` as in [installer/build-installer.ps1](installer/b
 
 ## Repository
 
-Source: https://github.com/luingry/smoothmice
+- **Upstream:** https://github.com/luingry/smoothmice  
+- **Fork & customize:** use GitHub **Fork**, clone your fork, change whatever you need, then `dotnet build` / `dotnet publish` as below. Your fork is yours to rename, rebrand, or extend — no permission needed beyond the repo license.
 
 ## Notes
 

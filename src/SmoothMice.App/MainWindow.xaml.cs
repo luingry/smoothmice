@@ -1,8 +1,12 @@
+using System.ComponentModel;
+using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using SmoothMice.App.ViewModels;
 
@@ -14,15 +18,24 @@ public partial class MainWindow
     private bool _presetSuppress;
     private bool _loaded;
     private bool _namesEventsWired;
-    private bool _clientSizeSnapped;
-
-    public IReadOnlyList<string> AccelPresetNames => MainViewModel.AccelPresetNames;
+    private MainViewModel? _vmSubscribed;
 
     public MainWindow()
     {
         InitializeComponent();
+        TitleMarkIcon.Source = LoadLargestIconFrame();
         VersionLabel.Text = FormatAppVersion();
         Deactivated += MainWindow_OnDeactivated;
+    }
+
+    /// <summary>
+    /// WPF <see cref="BitmapImage"/> on multi-frame .ico often picks a tiny layer; use the largest PNG frame for crisp UI scaling.
+    /// </summary>
+    private static ImageSource LoadLargestIconFrame()
+    {
+        var uri = new Uri("pack://application:,,,/SmoothMice.ico", UriKind.Absolute);
+        var decoder = BitmapDecoder.Create(uri, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+        return decoder.Frames.Cast<BitmapFrame>().OrderByDescending(f => f.PixelWidth * f.PixelHeight).First();
     }
 
     private static string FormatAppVersion()
@@ -57,6 +70,14 @@ public partial class MainWindow
     {
         if (DataContext is not MainViewModel vm) return;
 
+        if (_vmSubscribed != vm)
+        {
+            if (_vmSubscribed is not null)
+                _vmSubscribed.PropertyChanged -= Vm_OnPropertyChanged;
+            vm.PropertyChanged += Vm_OnPropertyChanged;
+            _vmSubscribed = vm;
+        }
+
         if (!_namesEventsWired)
         {
             vm.ProfileNames.CollectionChanged += (_, _) =>
@@ -64,6 +85,7 @@ public partial class MainWindow
                 _profileSuppress = true;
                 ProfileCombo.SelectedItem = vm.SelectedProfile?.DisplayName;
                 _profileSuppress = false;
+                RequestSnapToContentAfterLayout();
             };
             _namesEventsWired = true;
         }
@@ -75,6 +97,62 @@ public partial class MainWindow
 
         SyncPresetCombo(vm);
         _loaded = true;
+        RequestSnapToContentAfterLayout();
+    }
+
+    private void Vm_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (
+                nameof(MainViewModel.IsGlobalProfile)
+                or nameof(MainViewModel.SelectedProfile)))
+            return;
+
+        RequestSnapToContentAfterLayout();
+    }
+
+    /// <summary>
+    /// After first render we snap to device pixels (WPF chrome quirk). When visibility toggles
+    /// (e.g. global-only checkbox), re-run size-to-content so nothing is clipped.
+    /// </summary>
+    private void RequestSnapToContentAfterLayout()
+    {
+        if (!_loaded) return;
+
+        SizeToContent = SizeToContent.WidthAndHeight;
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            new Action(SnapClientSizeToDevicePixels));
+    }
+
+    /// <summary>
+    /// WPF: SizeToContent width+height with non-resizable chrome can leave a black strip at the client edge
+    /// (HWND vs renderer misalignment). Snap outer size to whole device pixels and stop auto-sizing.
+    /// https://github.com/dotnet/wpf/issues/9816
+    /// </summary>
+    private void MainWindow_OnContentRendered(object? sender, EventArgs e)
+    {
+        SnapClientSizeToDevicePixels();
+    }
+
+    private void SnapClientSizeToDevicePixels()
+    {
+        if (ActualWidth <= 0 || ActualHeight <= 0)
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.Loaded,
+                new Action(SnapClientSizeToDevicePixels));
+            return;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var physW = ActualWidth * dpi.DpiScaleX;
+        var physH = ActualHeight * dpi.DpiScaleY;
+        var snappedW = Math.Ceiling(physW) / dpi.DpiScaleX;
+        var snappedH = Math.Ceiling(physH) / dpi.DpiScaleY;
+
+        SizeToContent = SizeToContent.Manual;
+        Width = snappedW;
+        Height = snappedH;
     }
 
     private void ProfileCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -90,6 +168,8 @@ public partial class MainWindow
             SyncPresetCombo(vm);
         }
         finally { _profileSuppress = false; }
+
+        RequestSnapToContentAfterLayout();
     }
 
     private void AccelPreset_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -120,56 +200,38 @@ public partial class MainWindow
         ((App)Application.Current).PersistFromUi();
     }
 
-    private void Numeric_OnLostFocus(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// LostFocus can run before WPF flushes TwoWay bindings with UpdateSourceTrigger=LostFocus;
+    /// force source update so Persist sees new values. Same path for Enter in <see cref="Numeric_OnKeyDown"/>.
+    /// </summary>
+    private void CommitNumericBinding(TextBox? tb)
     {
         if (!_loaded) return;
+        if (tb is not null)
+            BindingOperations.GetBindingExpression(tb, TextBox.TextProperty)?.UpdateSource();
         ((App)Application.Current).PersistFromUi();
+    }
+
+    private void Numeric_OnLostFocus(object sender, RoutedEventArgs e) =>
+        CommitNumericBinding(sender as TextBox);
+
+    private void Numeric_OnKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        CommitNumericBinding(sender as TextBox);
     }
 
     private void Help_OnClick(object sender, RoutedEventArgs e)
     {
+        var v = FormatAppVersion();
         MessageBox.Show(
-            "SmoothMice — smooth mouse wheel scrolling for Windows.\n\n" +
-            "Acceleration uses an EWMA (exponentially-weighted moving average)\n" +
-            "of scroll speed, so the multiplier ramps up/down smoothly with\n" +
-            "no stepping artefacts.\n\n" +
-            "Preset curves:\n" +
-            "  Linear      (exp 1.0, max 2.5×) — proportional, gentle\n" +
-            "  Smooth      (exp 1.3, max 3.5×) — Mac-like, default\n" +
-            "  Exponential (exp 2.0, max 6.0×) — aggressive burst",
-            "SmoothMice",
+            "SmoothMice makes mouse wheel scrolling on Windows smoother and more pleasant to use.\n\n" +
+            $"Version {v}.\n\n" +
+            "Created by luingry.\n" +
+            "https://github.com/luingry/smoothmice",
+            "About SmoothMice",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
-    }
-
-    /// <summary>
-    /// WPF: SizeToContent width+height with non-resizable chrome can leave a black strip at the client edge
-    /// (HWND vs renderer misalignment). Snap outer size to whole device pixels and stop auto-sizing.
-    /// https://github.com/dotnet/wpf/issues/9816
-    /// </summary>
-    private void MainWindow_OnContentRendered(object? sender, EventArgs e)
-    {
-        if (_clientSizeSnapped)
-            return;
-
-        if (ActualWidth <= 0 || ActualHeight <= 0)
-        {
-            Dispatcher.BeginInvoke(
-                DispatcherPriority.Loaded,
-                new Action(() => MainWindow_OnContentRendered(sender, e)));
-            return;
-        }
-
-        _clientSizeSnapped = true;
-
-        var dpi = VisualTreeHelper.GetDpi(this);
-        var physW = ActualWidth * dpi.DpiScaleX;
-        var physH = ActualHeight * dpi.DpiScaleY;
-        var snappedW = Math.Ceiling(physW) / dpi.DpiScaleX;
-        var snappedH = Math.Ceiling(physH) / dpi.DpiScaleY;
-
-        SizeToContent = SizeToContent.Manual;
-        Width = snappedW;
-        Height = snappedH;
     }
 }

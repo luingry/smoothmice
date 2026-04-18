@@ -4,13 +4,7 @@ using SmoothMice.Core.Scrolling;
 
 namespace SmoothMice.Infrastructure.Windows;
 
-/// <summary>
-/// Brings together hook, profiles, smoothing engines and injection.
-///
-/// Acceleration is computed from an exponentially-weighted moving average
-/// (EWMA) of inter-event intervals, feeding a continuous power-curve
-/// multiplier — no discrete speed tiers, no stepping artefacts.
-/// </summary>
+/// <summary>Coordinates low-level hook, profile resolution, smoothing, and wheel injection.</summary>
 public sealed class ScrollCoordinator : IDisposable
 {
     private readonly ProfileManager _profiles;
@@ -25,7 +19,6 @@ public sealed class ScrollCoordinator : IDisposable
     private System.Threading.Timer? _tickTimer;
     private bool _running;
 
-    // ── EWMA acceleration state ───────────────────────────────────────────
     private double _smoothedIntervalMs = 400.0;
     private long   _lastEventMs        = -1;
 
@@ -73,8 +66,6 @@ public sealed class ScrollCoordinator : IDisposable
         else Start();
     }
 
-    // ── Hook callback ─────────────────────────────────────────────────────
-
     private void OnMouseWheel(object? sender, MouseWheelHookEventArgs e)
     {
         var snap = _profiles.Snapshot;
@@ -110,8 +101,6 @@ public sealed class ScrollCoordinator : IDisposable
         }
     }
 
-    // ── Tick (animation timer) ────────────────────────────────────────────
-
     private void Tick()
     {
         var snap = _profiles.Snapshot;
@@ -145,27 +134,15 @@ public sealed class ScrollCoordinator : IDisposable
         if (dh != 0) _injector.TryPostWheel(hwnd, dh, horizontal: true,  keys, pt);
     }
 
-    // ── EWMA helpers ──────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Updates and returns the EWMA-smoothed inter-event interval.
-    /// Must be called under <see cref="_gate"/>.
-    ///
-    /// Alpha = 0.55 → ramps from slow to fast in ~3 events, smooth enough
-    /// to avoid stepping, responsive enough to feel the acceleration change.
-    ///
-    /// After a pause ≥ 1.5 s the EWMA is reset to the reference interval
-    /// so the very first event in a new gesture starts at neutral speed.
-    /// </summary>
+    /// <summary>EWMA-smoothed inter-event interval; call under <see cref="_gate"/>.</summary>
     private double UpdateEwma(long nowMs, ScrollProfileSettings settings)
     {
-        const double alpha          = 0.55;
-        const double maxIntervalMs  = 1200.0;  // cap very slow intervals
-        const double resetPauseMs   = 1500.0;  // treat as new gesture after pause
+        const double alpha = 0.55;
+        const double maxIntervalMs = 1200.0;
+        const double resetPauseMs = 1500.0;
 
         if (_lastEventMs < 0 || nowMs - _lastEventMs >= resetPauseMs)
         {
-            // New session: start neutral so there's no sudden jump.
             _smoothedIntervalMs = settings.AccelerationDeltaMs;
         }
         else
@@ -183,8 +160,6 @@ public sealed class ScrollCoordinator : IDisposable
         _smoothedIntervalMs = 400.0;
         _lastEventMs        = -1;
     }
-
-    // ── IDisposable ───────────────────────────────────────────────────────
 
     public void Dispose()
     {

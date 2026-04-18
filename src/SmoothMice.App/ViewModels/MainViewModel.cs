@@ -26,10 +26,10 @@ public sealed class MainViewModel : ViewModelBase
 
     public IReadOnlyList<UpdateFrequencyOption> UpdateFrequencyOptions { get; } =
     [
-        new(UpdateCheckFrequency.DailyOnStartup, "Diária (ao iniciar)"),
-        new(UpdateCheckFrequency.Weekly, "Semanal"),
-        new(UpdateCheckFrequency.Monthly, "Mensal"),
-        new(UpdateCheckFrequency.Never, "Nunca"),
+        new(UpdateCheckFrequency.DailyOnStartup, "Every startup"),
+        new(UpdateCheckFrequency.Weekly, "Weekly"),
+        new(UpdateCheckFrequency.Monthly, "Monthly"),
+        new(UpdateCheckFrequency.Never, "Never"),
     ];
 
     public MainViewModel(ProfileManager manager, Action persist, Action requestManualUpdateCheck)
@@ -84,41 +84,73 @@ public sealed class MainViewModel : ViewModelBase
     public string SelectedDisplayName
     {
         get => SelectedProfile?.DisplayName ?? "";
-        set { if (SelectedProfile is not null) SelectedProfile.DisplayName = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.DisplayName = value;
+            Raise();
+            Save();
+        }
     }
-
-    // ── Animation ─────────────────────────────────────────────────────────
 
     public double StepSizePx
     {
         get => SelectedProfile?.Settings.StepSizePx ?? 0;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.StepSizePx = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.StepSizePx = value;
+            Raise();
+            Save();
+        }
     }
 
     public int AnimationTimeMs
     {
         get => SelectedProfile?.Settings.AnimationTimeMs ?? 0;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.AnimationTimeMs = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.AnimationTimeMs = value;
+            Raise();
+            Save();
+        }
     }
 
     public double TailToHeadRatio
     {
         get => SelectedProfile?.Settings.TailToHeadRatio ?? 0;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.TailToHeadRatio = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.TailToHeadRatio = value;
+            Raise();
+            Save();
+        }
     }
 
     public bool AnimationEasing
     {
         get => SelectedProfile?.Settings.AnimationEasing ?? false;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.AnimationEasing = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.AnimationEasing = value;
+            Raise();
+            Save();
+        }
     }
-
-    // ── Acceleration ──────────────────────────────────────────────────────
 
     public int AccelerationDeltaMs
     {
         get => SelectedProfile?.Settings.AccelerationDeltaMs ?? 400;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.AccelerationDeltaMs = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.AccelerationDeltaMs = value;
+            Raise();
+            Save();
+        }
     }
 
     public int AccelerationCurvePreset
@@ -130,43 +162,62 @@ public sealed class MainViewModel : ViewModelBase
             SelectedProfile.Settings.AccelerationCurvePreset = value;
             ApplyPreset(value);
             Raise();
+            Save();
         }
     }
 
     public double AccelerationExponent
     {
         get => SelectedProfile?.Settings.AccelerationExponent ?? 1.3;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.AccelerationExponent = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.AccelerationExponent = value;
+            Raise();
+            Save();
+        }
     }
 
     public double AccelerationMaxX
     {
         get => SelectedProfile?.Settings.AccelerationMaxX ?? 3.5;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.AccelerationMaxX = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.AccelerationMaxX = value;
+            Raise();
+            Save();
+        }
     }
-
-    // ── Behaviour ─────────────────────────────────────────────────────────
 
     public bool EnableForAllAppsByDefault
     {
         get => SelectedProfile?.Settings.EnableForAllAppsByDefault ?? false;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.EnableForAllAppsByDefault = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.EnableForAllAppsByDefault = value;
+            Raise();
+            Save();
+        }
     }
 
     public bool HorizontalSmoothness
     {
         get => SelectedProfile?.Settings.HorizontalSmoothness ?? false;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.HorizontalSmoothness = value; Raise(); }
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.HorizontalSmoothness = value;
+            Raise();
+            Save();
+        }
     }
-
-    // ── Commands ─────────────────────────────────────────────────────────
 
     public ICommand ResetAllCommand { get; }
     public ICommand AddProfileCommand { get; }
     public ICommand RemoveProfileCommand { get; }
     public ICommand CheckForUpdatesCommand { get; }
-
-    // ── Lifecycle ────────────────────────────────────────────────────────
 
     public void ReloadFromManager()
     {
@@ -206,8 +257,6 @@ public sealed class MainViewModel : ViewModelBase
         SelectedProfile = match.Clone();
         _persist();
     }
-
-    // ── Helpers ──────────────────────────────────────────────────────────
 
     private void ApplyPreset(int preset)
     {

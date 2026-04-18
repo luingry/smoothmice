@@ -4,7 +4,6 @@ using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Windows;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -143,7 +142,7 @@ public partial class App : Application
                 if (manual)
                 {
                     Dispatcher.Invoke(() => MessageBox.Show(
-                        $"Não foi possível verificar atualizações.\n\n{result.ErrorMessage}",
+                        $"Could not check for updates.\n\n{result.ErrorMessage}",
                         "SmoothMice",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning));
@@ -164,10 +163,10 @@ public partial class App : Application
                         string.IsNullOrWhiteSpace(result.InstallerAssetName))
                     {
                         var open = MessageBox.Show(
-                            $"Está disponível a versão {result.LatestVersionLabel}, mas não foi encontrado o instalador " +
-                            "(SmoothMice_Setup_*.exe) nos assets desta release no GitHub.\n\n" +
-                            "Abrir a página da release?",
-                            "SmoothMice — atualização",
+                            $"Version {result.LatestVersionLabel} is available, but the installer " +
+                            "(SmoothMice_Setup_*.exe) was not found in this release's assets on GitHub.\n\n" +
+                            "Open the release page?",
+                            "SmoothMice — update",
                             MessageBoxButton.YesNo,
                             MessageBoxImage.Warning);
                         if (open == MessageBoxResult.Yes && result.ReleasePageUrl is { } page)
@@ -176,10 +175,10 @@ public partial class App : Application
                     }
 
                     var go = MessageBox.Show(
-                        $"Está disponível a versão {result.LatestVersionLabel}.\n\n" +
-                        "Deseja descarregar e instalar agora? Será usada a instalação silenciosa (Inno Setup); " +
-                        "o programa fecha durante a instalação e tenta reabrir em seguida.",
-                        "SmoothMice — atualização",
+                        $"Version {result.LatestVersionLabel} is available.\n\n" +
+                        "Download and install now? Setup will run silently (Inno Setup); " +
+                        "the app will close during installation and try to reopen afterward.",
+                        "SmoothMice — update",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question);
                     wantsInstall = go == MessageBoxResult.Yes;
@@ -223,7 +222,7 @@ public partial class App : Application
                         }
                         catch
                         {
-                            // best effort antes de fechar
+                            // best effort before shutdown
                         }
 
                         try
@@ -242,7 +241,7 @@ public partial class App : Application
                         catch (Exception ex)
                         {
                             MessageBox.Show(
-                                $"Não foi possível iniciar a instalação.\n\n{ex.Message}",
+                                $"Could not start the installation.\n\n{ex.Message}",
                                 "SmoothMice",
                                 MessageBoxButton.OK,
                                 MessageBoxImage.Error);
@@ -257,7 +256,7 @@ public partial class App : Application
                     if (manual)
                     {
                         Dispatcher.Invoke(() => MessageBox.Show(
-                            $"Falha ao descarregar ou instalar.\n\n{ex.Message}",
+                            $"Failed to download or install.\n\n{ex.Message}",
                             "SmoothMice",
                             MessageBoxButton.OK,
                             MessageBoxImage.Error));
@@ -267,7 +266,7 @@ public partial class App : Application
             else if (manual)
             {
                 Dispatcher.Invoke(() => MessageBox.Show(
-                    "Está a usar a versão mais recente.",
+                    "You are using the latest version.",
                     "SmoothMice",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information));

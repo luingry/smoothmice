@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
 
@@ -69,13 +68,13 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             if (!root.TryGetProperty("tag_name", out var tagEl))
-                return new UpdateQueryResult(false, "Resposta sem tag_name.", false, null, null, null, null);
+                return new UpdateQueryResult(false, "Response missing tag_name.", false, null, null, null, null);
 
             var tag = tagEl.GetString() ?? "";
             var pageUrl = root.TryGetProperty("html_url", out var href) ? href.GetString() : null;
             var latest = ParseVersionLoose(tag);
             if (latest is null)
-                return new UpdateQueryResult(false, $"Tag inválida: {tag}", false, null, null, null, null);
+                return new UpdateQueryResult(false, $"Invalid tag: {tag}", false, null, null, null, null);
 
             var releasePageUrl = string.IsNullOrWhiteSpace(pageUrl)
                 ? $"https://github.com/{Owner}/{Repo}/releases/latest"
@@ -106,7 +105,7 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
         CancellationToken ct = default)
     {
         if (!IsTrustedGitHubDownloadUrl(sourceUrl))
-            throw new InvalidOperationException("URL de descarga não reconhecida (GitHub).");
+            throw new InvalidOperationException("Unrecognized download URL (expected GitHub).");
 
         using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(20) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);

@@ -4,6 +4,16 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 0.3.4 — 2026-04-18
+
+### Alterações
+
+- **UI:** refinamento visual e estrutura do `MainWindow` / recursos em `App.xaml` (layout, tipografia, secções de definições).
+- **ViewModel / arranque:** ajustes no `MainViewModel` e no fluxo em `App.xaml.cs` alinhados à nova UI.
+- **Core / infra:** remoção de APIs não usadas em `ProfileManager`; comentários e documentação interna mais compactos em `SmoothScrollEngine`, `ScrollCoordinator`, `ScrollMath`; remoção da constante pública `ScrollMath.WheelDelta`.
+- **Atualizações:** mensagens de erro da verificação GitHub (API / URL) passam a inglês.
+- **Docs / licença:** README com orientação explícita a forks e builds próprios; ficheiro `LICENSE` (MIT).
+
 ## 0.3.3 — 2026-04-18
 
 ### Alterações

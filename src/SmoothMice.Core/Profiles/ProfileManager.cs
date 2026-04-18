@@ -35,28 +35,6 @@ public sealed class ProfileManager
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void UpdateGlobal(Action<ScrollProfile> mutate)
-    {
-        lock (_lock)
-        {
-            var g = _settings.Profiles.FirstOrDefault(p => p.IsGlobal);
-            if (g is null)
-            {
-                g = new ScrollProfile
-                {
-                    Id = DefaultSettings.GlobalProfileId,
-                    DisplayName = DefaultSettings.GlobalProfileName,
-                    ExecutableName = null,
-                    IsGlobal = true,
-                    Settings = DefaultSettings.CreateGlobalProfileSettings(),
-                };
-                _settings.Profiles.Insert(0, g);
-            }
-            mutate(g);
-        }
-        SettingsChanged?.Invoke(this, EventArgs.Empty);
-    }
-
     public void UpdateShell(
         bool? autoStart = null,
         bool? enabled = null,
@@ -98,25 +76,10 @@ public sealed class ProfileManager
             if (specific is not null)
                 return new ProfileResolution(specific.Settings.Clone(), InterceptForSmoothing: true);
 
-            // No app-specific profile: only smooth if global default says "all apps".
             return new ProfileResolution(
                 global.Settings.Clone(),
                 InterceptForSmoothing: global.Settings.EnableForAllAppsByDefault);
         }
-    }
-
-    public ScrollProfile? GetSelectedProfile()
-    {
-        lock (_lock)
-        {
-            return _settings.Profiles.FirstOrDefault(p => p.Id == _settings.SelectedProfileId)?.Clone();
-        }
-    }
-
-    public IReadOnlyList<ScrollProfile> ListProfiles()
-    {
-        lock (_lock)
-            return _settings.Profiles.Select(p => p.Clone()).ToList();
     }
 
     public bool TryAddAppProfile(string executableName, string displayName)
@@ -195,7 +158,6 @@ public sealed class ProfileManager
             });
         }
 
-        // Normalize selected id
         if (_settings.Profiles.All(p => p.Id != _settings.SelectedProfileId))
             _settings.SelectedProfileId = DefaultSettings.GlobalProfileId;
     }
