@@ -48,6 +48,19 @@ public static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool DestroyIcon(IntPtr hIcon);
 
+    public const uint ProcessQueryLimitedInformation = 0x1000;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr hObject);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool QueryFullProcessImageName(
+        IntPtr hProcess, uint dwFlags,
+        System.Text.StringBuilder lpExeName, ref uint lpdwSize);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
     {

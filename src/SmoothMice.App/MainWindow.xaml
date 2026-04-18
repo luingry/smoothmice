@@ -287,7 +287,7 @@
                     <ProgressBar Height="8"
                                  Minimum="0"
                                  Maximum="100"
-                                 Value="{Binding UpdateBannerProgress}"
+                                 Value="{Binding UpdateBannerProgress, Mode=OneWay}"
                                  IsIndeterminate="{Binding UpdateBannerIndeterminate}"
                                  Foreground="{StaticResource Brush.Accent}"
                                  Background="{StaticResource Brush.Border}"/>

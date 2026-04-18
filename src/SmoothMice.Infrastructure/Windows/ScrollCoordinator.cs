@@ -18,6 +18,7 @@ public sealed class ScrollCoordinator : IDisposable
 
     private System.Threading.Timer? _tickTimer;
     private bool _running;
+    private int _ticking;
 
     private double _smoothedIntervalMs = 400.0;
     private long   _lastEventMs        = -1;
@@ -102,6 +103,22 @@ public sealed class ScrollCoordinator : IDisposable
     }
 
     private void Tick()
+    {
+        // Reentrancy guard: if the previous tick is still running (e.g. due to a slow Win32 call),
+        // skip this invocation instead of letting threadpool callbacks pile up.
+        if (System.Threading.Interlocked.CompareExchange(ref _ticking, 1, 0) != 0)
+            return;
+        try
+        {
+            TickCore();
+        }
+        finally
+        {
+            System.Threading.Volatile.Write(ref _ticking, 0);
+        }
+    }
+
+    private void TickCore()
     {
         var snap = _profiles.Snapshot;
         if (!snap.Enabled) return;

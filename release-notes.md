@@ -4,6 +4,27 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 0.3.13 — 2026-04-18
+
+### Correção crítica — crash na abertura (todas as versões ≥ 0.3.9)
+
+- **XAML:** `ProgressBar.Value` ligado a `UpdateBannerProgress` (propriedade com `private set`) sem `Mode=OneWay` — WPF usa `BindsTwoWayByDefault` para `RangeBase.Value`, tenta escrever de volta na propriedade read-only e lança `InvalidOperationException` não tratada no arranque, matando o processo silenciosamente.
+  - Corrigido: `Value="{Binding UpdateBannerProgress, Mode=OneWay}"`.
+
+## 0.3.12 — 2026-04-18
+
+### Correções críticas de arranque
+
+- **Cursor travado / app não abre:** `ActiveAppResolver` substituiu `Process.MainModule.FileName` (enumeração de módulos, centenas de ms) por `QueryFullProcessImageName` (nativo, < 1 ms); bloquear a UI thread no callback do hook do rato causava o freeze do cursor e impedia a janela de aparecer.
+- **Cache de HWND:** quando a janela em primeiro plano não muda, o `ActiveAppResolver` devolve o resultado em cache sem chamar qualquer API Win32 — eliminando a carga no hook e no timer.
+- **Reentrada no timer:** `Tick()` (4 ms) agora tem guarda de reentrada com `Interlocked`; evita pileup de chamadas no thread pool quando a resolução da app demorava mais do que o intervalo.
+
+## 0.3.11 — 2026-04-18
+
+### Alterações
+
+- **Arranque (instalação / single-file):** `SetWindowsHookEx(WH_MOUSE_LL)` passa `hMod = NULL` conforme Windows — evita falha do hook com apphost e crash silencioso antes da janela abrir.
+
 ## 0.3.9 — 2026-04-18
 
 ### Alterações

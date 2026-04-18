@@ -20,8 +20,10 @@ public sealed class MouseHookService : IDisposable
                 return;
 
             _proc = HookCallback;
-            var module = NativeMethods.GetModuleHandle(null);
-            _hook = NativeMethods.SetWindowsHookEx(NativeMethods.WhMouseLl, _proc, module, 0);
+            // WH_MOUSE_LL / WH_KEYBOARD_LL: Windows Vista+ requires hMod == NULL (global low-level hook).
+            // A non-null module handle (e.g. apphost from GetModuleHandle(null)) can make SetWindowsHookEx fail,
+            // which crashes startup right after install (single-file publish).
+            _hook = NativeMethods.SetWindowsHookEx(NativeMethods.WhMouseLl, _proc, IntPtr.Zero, 0);
             if (_hook == IntPtr.Zero)
                 throw new InvalidOperationException($"SetWindowsHookEx failed: {Marshal.GetLastWin32Error()}");
         }
