@@ -20,6 +20,7 @@ public partial class MainWindow
     private bool _namesEventsWired;
     private MainViewModel? _vmSubscribed;
     private int _snapRetryRemaining = 40;
+    private DispatcherTimer? _liveApplyTimer;
 
     public MainWindow()
     {
@@ -27,6 +28,7 @@ public partial class MainWindow
         TitleMarkIcon.Source = LoadLargestIconFrame();
         VersionLabel.Text = FormatAppVersion();
         Deactivated += MainWindow_OnDeactivated;
+        IsVisibleChanged += MainWindow_OnIsVisibleChanged;
     }
 
     /// <summary>
@@ -56,8 +58,61 @@ public partial class MainWindow
     {
         // Hide to tray instead of closing; actual exit goes through tray "Exit"
         e.Cancel = true;
+        StopLiveApplyTimer();
         ((App)Application.Current).PersistFromUi();
         Hide();
+    }
+
+    private void MainWindow_OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if ((bool)e.NewValue)
+            StartLiveApplyTimer();
+        else
+            StopLiveApplyTimer();
+    }
+
+    private void StartLiveApplyTimer()
+    {
+        if (_liveApplyTimer is null)
+        {
+            _liveApplyTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(300)
+            };
+            _liveApplyTimer.Tick += LiveApplyTimer_OnTick;
+        }
+        _liveApplyTimer.Start();
+    }
+
+    private void StopLiveApplyTimer()
+    {
+        _liveApplyTimer?.Stop();
+    }
+
+    private void LiveApplyTimer_OnTick(object? sender, EventArgs e)
+    {
+        if (!_loaded) return;
+        CommitAllNumericBindings();
+        ((App)Application.Current).PersistFromUi();
+    }
+
+    private void CommitAllNumericBindings()
+    {
+        foreach (var tb in FindVisualChildren<TextBox>(this))
+            BindingOperations.GetBindingExpression(tb, TextBox.TextProperty)?.UpdateSource();
+    }
+
+    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(parent);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T t)
+                yield return t;
+            foreach (var c in FindVisualChildren<T>(child))
+                yield return c;
+        }
     }
 
     private void MainWindow_OnDeactivated(object? sender, EventArgs e)

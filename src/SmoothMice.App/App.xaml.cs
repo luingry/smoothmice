@@ -114,7 +114,15 @@ public partial class App : Application
             main.Show();
         }
 
-        _coordinator.RefreshEnabledState();
+        // Defer hook installation to Normal priority so the pump is running when
+        // SetWindowsHookEx is called.  Normal priority fires before the first render pass
+        // (ContentRendered fires at Render priority, which is lower), meaning the brief
+        // input-chain pause from SetWindowsHookEx happens while the window is still invisible
+        // — completely imperceptible to the user.
+        Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+        {
+            _coordinator?.RefreshEnabledState();
+        }));
 
         Dispatcher.BeginInvoke(
             DispatcherPriority.ApplicationIdle,

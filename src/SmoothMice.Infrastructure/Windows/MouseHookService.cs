@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace SmoothMice.Infrastructure.Windows;
@@ -20,6 +21,16 @@ public sealed class MouseHookService : IDisposable
                 return;
 
             _proc = HookCallback;
+
+            // Pre-JIT the delegate and its call chain before handing the pointer to Windows.
+            // Without this, the very first mouse event triggers JIT compilation inside the
+            // hook callback — the hook must return before Windows continues delivering input,
+            // so any JIT delay is felt as a direct mouse stutter.
+            // PrepareDelegate also ensures the GC never moves the stub while it is live in
+            // native code (the delegate itself is already kept alive by _proc, but the
+            // reverse-pinvoke thunk benefits from the explicit preparation).
+            RuntimeHelpers.PrepareDelegate(_proc);
+
             // WH_MOUSE_LL / WH_KEYBOARD_LL: Windows Vista+ requires hMod == NULL (global low-level hook).
             // A non-null module handle (e.g. apphost from GetModuleHandle(null)) can make SetWindowsHookEx fail,
             // which crashes startup right after install (single-file publish).

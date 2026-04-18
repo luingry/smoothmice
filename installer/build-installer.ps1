@@ -30,6 +30,7 @@ if ($useSelfContained) {
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `
+    -p:PublishReadyToRun=true `
     -p:PublishDebugSymbols=false
 }
 else {
@@ -39,6 +40,7 @@ else {
     -p:SelfContained=false `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:PublishReadyToRun=true `
     -p:PublishDebugSymbols=false
 }
 

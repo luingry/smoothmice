@@ -4,6 +4,17 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 1.0.0 — 2026-04-18
+
+### Marco estável — primeira versão de produção
+
+- **Hook:** delegate pre-JIT antes de `SetWindowsHookEx` (`RuntimeHelpers.PrepareDelegate`) — elimina o stutter no primeiro evento do rato causado por JIT dentro do callback nativo.
+- **Arranque:** instalação do hook diferida para `DispatcherPriority.Normal` — o message pump já está ativo quando `SetWindowsHookEx` é chamado; pausa da input-chain ocorre enquanto a janela ainda está invisível.
+- **UI:** timer de aplicação automática (300 ms, `Background` priority) — enquanto a janela estiver aberta, definições são persistidas continuamente sem precisar de fechar a janela.
+- **Publish:** `PublishReadyToRun=true` em ambos os modos (self-contained e framework-dependent) — reduz tempo de arranque a frio.
+
+---
+
 ## 0.3.13 — 2026-04-18
 
 ### Correção crítica — crash na abertura (todas as versões ≥ 0.3.9)
