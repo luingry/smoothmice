@@ -6,7 +6,9 @@ Windows-only desktop utility that smooths mouse wheel scrolling with per-applica
 
 ## App preview
 
-![SmoothMice configuration window (animation and acceleration settings).](docs/app-preview.png)
+<p align="center">
+  <img src="docs/app-preview.png" alt="SmoothMice configuration window (animation and acceleration settings)." width="720" />
+</p>
 
 ## Requirements
 

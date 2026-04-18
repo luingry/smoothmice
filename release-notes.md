@@ -4,6 +4,12 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 0.3.6 — 2026-04-18
+
+### Alterações
+
+- **Docs:** README — pré-visualização atualizada (`docs/app-preview.png`); imagem centrada com HTML (`<p align="center">`).
+
 ## 0.3.5 — 2026-04-18
 
 ### Alterações
