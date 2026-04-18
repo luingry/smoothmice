@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -17,7 +18,21 @@ public partial class MainWindow
     public MainWindow()
     {
         InitializeComponent();
+        VersionLabel.Text = FormatAppVersion();
         Deactivated += MainWindow_OnDeactivated;
+    }
+
+    private static string FormatAppVersion()
+    {
+        var asm = typeof(MainWindow).Assembly;
+        var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (!string.IsNullOrWhiteSpace(info))
+        {
+            var plus = info.IndexOf('+', StringComparison.Ordinal);
+            return plus >= 0 ? info[..plus] : info;
+        }
+
+        return asm.GetName().Version?.ToString(3) ?? "";
     }
 
     private void MainWindow_OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)

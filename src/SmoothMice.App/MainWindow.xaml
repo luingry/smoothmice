@@ -3,8 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:SmoothMice.App.Converters"
         Title="SmoothMice"
-        Height="580"
-        Width="580"
+        SizeToContent="WidthAndHeight"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
         Background="#F0F0F0"
@@ -54,12 +53,13 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="16,12,16,12">
+    <Grid Margin="16,12,16,10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -97,14 +97,11 @@
                 CornerRadius="8"
                 BorderBrush="#D8D8D8"
                 BorderThickness="1">
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          Padding="16,12">
-                <Grid>
+            <Grid Margin="16,12">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*" MinWidth="220"/>
                         <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*" MinWidth="220"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- ═══ LEFT — Animation + Behaviour ══════════════════ -->
@@ -202,8 +199,7 @@
                                                 Converter={StaticResource IntStr}}"/>
 
                     </StackPanel>
-                </Grid>
-            </ScrollViewer>
+            </Grid>
         </Border>
 
         <!-- ── Action bar ────────────────────────────────────────────────── -->
@@ -217,5 +213,13 @@
                         Command="{Binding RemoveProfileCommand}"/>
             </StackPanel>
         </DockPanel>
+
+        <TextBlock x:Name="VersionLabel"
+                   Grid.Row="5"
+                   HorizontalAlignment="Center"
+                   Margin="0,6,0,2"
+                   FontSize="9"
+                   Foreground="#BBBBBB"
+                   SnapsToDevicePixels="True"/>
     </Grid>
 </Window>

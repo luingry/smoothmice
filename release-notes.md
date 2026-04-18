@@ -4,6 +4,13 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 0.3.2 — 2026-04-18
+
+### Alterações
+
+- **UI:** versão da app (semver) discreta, centrada no rodapé da janela.
+- **UI:** janela com `SizeToContent` e área de definições em altura automática (sem `ScrollViewer` desnecessário), para evitar conteúdo cortado e espaço vazio.
+
 ## 0.3.1 — 2026-04-18
 
 ### Alterações
