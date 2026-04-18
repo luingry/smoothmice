@@ -4,6 +4,8 @@
         xmlns:c="clr-namespace:SmoothMice.App.Converters"
         xmlns:vm="clr-namespace:SmoothMice.App.ViewModels"
         Title="SmoothMice"
+        MinWidth="320"
+        MinHeight="520"
         SizeToContent="WidthAndHeight"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"

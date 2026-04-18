@@ -19,6 +19,7 @@ public partial class MainWindow
     private bool _loaded;
     private bool _namesEventsWired;
     private MainViewModel? _vmSubscribed;
+    private int _snapRetryRemaining = 40;
 
     public MainWindow()
     {
@@ -118,6 +119,7 @@ public partial class MainWindow
     {
         if (!_loaded) return;
 
+        _snapRetryRemaining = 40;
         SizeToContent = SizeToContent.WidthAndHeight;
         Dispatcher.BeginInvoke(
             DispatcherPriority.Loaded,
@@ -134,13 +136,40 @@ public partial class MainWindow
         SnapClientSizeToDevicePixels();
     }
 
+    /// <summary>
+    /// After /tray startup the window can be minimized then hidden before real content layout;
+    /// snapping then locks title-bar-only sizes. Re-run when visible and normal.
+    /// </summary>
+    public void RecalculateWindowSize() => RequestSnapToContentAfterLayout();
+
     private void SnapClientSizeToDevicePixels()
     {
+        // /tray: minimized then hidden — never lock sizes here; OpenRequested calls RecalculateWindowSize.
+        if (WindowState == WindowState.Minimized || Visibility != Visibility.Visible)
+            return;
+
         if (ActualWidth <= 0 || ActualHeight <= 0)
         {
-            Dispatcher.BeginInvoke(
-                DispatcherPriority.Loaded,
-                new Action(SnapClientSizeToDevicePixels));
+            if (_snapRetryRemaining-- > 0)
+            {
+                Dispatcher.BeginInvoke(
+                    DispatcherPriority.Loaded,
+                    new Action(SnapClientSizeToDevicePixels));
+            }
+
+            return;
+        }
+
+        // Do not freeze collapsed measurements (minimized chrome, hidden window, transient layout).
+        if (ActualWidth < 200 || ActualHeight < 120)
+        {
+            if (_snapRetryRemaining-- > 0)
+            {
+                Dispatcher.BeginInvoke(
+                    DispatcherPriority.Render,
+                    new Action(SnapClientSizeToDevicePixels));
+            }
+
             return;
         }
 

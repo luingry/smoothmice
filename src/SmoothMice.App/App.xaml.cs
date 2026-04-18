@@ -56,10 +56,11 @@ public partial class App : Application
         {
             Current.Dispatcher.Invoke(() =>
             {
-                if (MainWindow is { } w)
+                if (MainWindow is MainWindow w)
                 {
                     w.Show();
                     w.WindowState = System.Windows.WindowState.Normal;
+                    w.RecalculateWindowSize();
                     w.Activate();
                 }
             });
@@ -250,9 +251,11 @@ public partial class App : Application
 
                     var errFlag = LastOtaSetupErrorPath();
                     var batPath = Path.Combine(workDir, "_run_install.bat");
-                    // Delay + /CLOSEAPPLICATIONS: avoid replacing SmoothMice.exe while the old process still holds the file.
+                    // Wait for exit, then taskkill (best-effort) so Inno can replace SmoothMice.exe; /CLOSEAPPLICATIONS as backup.
                     var bat = "@echo off\r\n" +
-                              "timeout /t 3 /nobreak >nul\r\n" +
+                              "timeout /t 5 /nobreak >nul\r\n" +
+                              "taskkill /IM SmoothMice.exe /F >nul 2>&1\r\n" +
+                              "timeout /t 2 /nobreak >nul\r\n" +
                               $"start /wait \"\" \"{EscapeForBatchPath(setupPath)}\" /VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART /CLOSEAPPLICATIONS\r\n" +
                               $"if errorlevel 1 echo OTA_SETUP_FAILED code %%ERRORLEVEL%% > \"{EscapeForBatchPath(errFlag)}\"\r\n" +
                               $"if exist \"{EscapeForBatchPath(installedExe)}\" start \"\" \"{EscapeForBatchPath(installedExe)}\" /tray\r\n" +

@@ -4,6 +4,13 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 0.3.7 — 2026-04-18
+
+### Alterações
+
+- **UI:** janela de definições deixa de ficar “só barra de título” após arranque com `/tray` (OTA ou auto-start): não fixar `SizeToContent`/`Width`/`Height` com janela minimizada ou oculta; `MinWidth`/`MinHeight`; ao abrir pela tray, recalcular tamanho.
+- **OTA:** batch de instalação — espera 5 s + `taskkill` best-effort + 2 s antes do Inno, para libertar `SmoothMice.exe` antes de substituir o ficheiro.
+
 ## 0.3.6 — 2026-04-18
 
 ### Alterações
