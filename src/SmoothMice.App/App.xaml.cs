@@ -19,6 +19,10 @@ namespace SmoothMice.App;
 
 public partial class App : Application
 {
+    /// <summary>Written by the OTA install batch if Inno Setup returns non-zero; shown on next startup.</summary>
+    private static string LastOtaSetupErrorPath() =>
+        Path.Combine(Path.GetTempPath(), "SmoothMiceLastOtaSetupError.txt");
+
     private JsonSettingsRepository? _repo;
     private ProfileManager? _profiles;
     private ScrollCoordinator? _coordinator;
@@ -38,6 +42,8 @@ public partial class App : Application
         _repo = new JsonSettingsRepository();
         var loaded = _repo.LoadOrCreate();
         _profiles = new ProfileManager(loaded);
+
+        TryNotifyOtaInstallFailureFromLastRun();
 
         var hook = new MouseHookService();
         var injector = new ScrollInjector();
@@ -106,6 +112,34 @@ public partial class App : Application
                     return;
                 _ = CheckForUpdatesAsync(manual: false);
             }));
+    }
+
+    private static void TryNotifyOtaInstallFailureFromLastRun()
+    {
+        var path = LastOtaSetupErrorPath();
+        string? text;
+        try
+        {
+            if (!File.Exists(path))
+                return;
+            text = File.ReadAllText(path).Trim();
+            File.Delete(path);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        MessageBox.Show(
+            "The last in-app update did not finish successfully (Inno Setup reported a failure).\n\n" +
+            $"{text}\n\n" +
+            "Download the latest installer from the release page and run it manually if the app misbehaves.",
+            "SmoothMice — update",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
     }
 
     private static bool ShouldRunScheduledUpdateCheck(AppSettings s) =>
@@ -189,6 +223,15 @@ public partial class App : Application
 
                 try
                 {
+                    try
+                    {
+                        File.Delete(LastOtaSetupErrorPath());
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+
                     var workDir = Path.Combine(Path.GetTempPath(), "SmoothMiceUpdate", Guid.NewGuid().ToString("N"));
                     Directory.CreateDirectory(workDir);
                     var setupPath = Path.Combine(workDir, result.InstallerAssetName!);
@@ -205,9 +248,13 @@ public partial class App : Application
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                         "Programs", "SmoothMice", "SmoothMice.exe");
 
+                    var errFlag = LastOtaSetupErrorPath();
                     var batPath = Path.Combine(workDir, "_run_install.bat");
+                    // Delay + /CLOSEAPPLICATIONS: avoid replacing SmoothMice.exe while the old process still holds the file.
                     var bat = "@echo off\r\n" +
-                              $"start /wait \"\" \"{EscapeForBatchPath(setupPath)}\" /VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART\r\n" +
+                              "timeout /t 3 /nobreak >nul\r\n" +
+                              $"start /wait \"\" \"{EscapeForBatchPath(setupPath)}\" /VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART /CLOSEAPPLICATIONS\r\n" +
+                              $"if errorlevel 1 echo OTA_SETUP_FAILED code %%ERRORLEVEL%% > \"{EscapeForBatchPath(errFlag)}\"\r\n" +
                               $"if exist \"{EscapeForBatchPath(installedExe)}\" start \"\" \"{EscapeForBatchPath(installedExe)}\" /tray\r\n" +
                               "del \"%~f0\"\r\n";
 
@@ -253,14 +300,13 @@ public partial class App : Application
                 }
                 catch (Exception ex)
                 {
-                    if (manual)
-                    {
-                        Dispatcher.Invoke(() => MessageBox.Show(
-                            $"Failed to download or install.\n\n{ex.Message}",
-                            "SmoothMice",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Error));
-                    }
+                    // User already agreed to install — always tell them if download / launcher prep failed
+                    // (scheduled checks use manual=false but still show the install prompt).
+                    Dispatcher.Invoke(() => MessageBox.Show(
+                        $"Failed to download or prepare the update.\n\n{ex.Message}",
+                        "SmoothMice",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error));
                 }
             }
             else if (manual)

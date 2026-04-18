@@ -4,6 +4,14 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 0.3.5 — 2026-04-18
+
+### Alterações
+
+- **UI:** Enter nos campos numéricos passa a limpar o foco após gravar o valor, para feedback visual claro.
+- **Atualizações in-app:** Inno com `CloseApplications=yes`; batch OTA com espera curta e `/CLOSEAPPLICATIONS`; ficheiro de erro em `%TEMP%` + aviso no próximo arranque se o setup falhar; mensagem se a descarga/preparação falhar mesmo quando a verificação não foi manual; remoção do “falhar em silêncio” nesses caminhos.
+- **Docs:** README — pré-visualização com `docs/app-preview.png` (substitui `myProfile.png`).
+
 ## 0.3.4 — 2026-04-18
 
 ### Alterações

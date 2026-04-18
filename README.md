@@ -4,9 +4,9 @@ Windows-only desktop utility that smooths mouse wheel scrolling with per-applica
 
 **Open source:** the full source is on GitHub. Anyone can **fork** the repo, **edit** the code, and ship **their own build** or forked variant (respect the license file in the repository). Pull requests and issues are welcome if you want changes upstream.
 
-## App preview (my profile)
+## App preview
 
-![SmoothMice — my profile](docs/myProfile.png)
+![SmoothMice configuration window (animation and acceleration settings).](docs/app-preview.png)
 
 ## Requirements
 

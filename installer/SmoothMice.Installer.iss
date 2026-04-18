@@ -33,7 +33,8 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64
 ArchitecturesAllowed=x64
-CloseApplications=no
+; Allow replacing SmoothMice.exe while a previous instance is exiting (OTA / silent upgrades).
+CloseApplications=yes
 RestartApplications=no
 
 [Languages]

@@ -220,6 +220,10 @@ public partial class MainWindow
         if (e.Key != Key.Enter) return;
         e.Handled = true;
         CommitNumericBinding(sender as TextBox);
+        // Leave the TextBox so Enter reads as "done" (caret/border no longer on the field).
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            static () => Keyboard.ClearFocus());
     }
 
     private void Help_OnClick(object sender, RoutedEventArgs e)
