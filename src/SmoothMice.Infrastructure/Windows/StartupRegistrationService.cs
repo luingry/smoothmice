@@ -10,6 +10,9 @@ public sealed class StartupRegistrationService
     /// <summary>Command-line flag: start hidden (notification area only).</summary>
     public const string TrayStartupArg = "/tray";
 
+    /// <summary>After OTA Inno finishes: one normal-window launch so layout runs, then app relaunches with <see cref="TrayStartupArg"/>.</summary>
+    public const string PostOtaRelaunchArg = "/postota";
+
     public bool IsEnabled()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: false);
@@ -23,6 +26,17 @@ public sealed class StartupRegistrationService
         foreach (var a in args)
         {
             if (string.Equals(a, TrayStartupArg, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    public static bool PostOtaRelaunchMatches(string[] args)
+    {
+        foreach (var a in args)
+        {
+            if (string.Equals(a, PostOtaRelaunchArg, StringComparison.OrdinalIgnoreCase))
                 return true;
         }
 

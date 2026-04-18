@@ -6,6 +6,8 @@ namespace SmoothMice.Infrastructure.Updates;
 /// <param name="ReleasePageUrl">Página HTML da release (mesma informação que em GitHub Releases).</param>
 /// <param name="InstallerAssetName">Nome do ficheiro do instalador na release (ex.: SmoothMice_Setup_0.4.0.exe).</param>
 /// <param name="InstallerDownloadUrl"><c>browser_download_url</c> do asset — URL de descarga oficial da release.</param>
+public readonly record struct DownloadProgress(long BytesRead, long? TotalBytes);
+
 public sealed record UpdateQueryResult(
     bool Succeeded,
     string? ErrorMessage,
@@ -98,10 +100,20 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
     }
 
     /// <summary>Descarrega o instalador da URL do asset (GitHub / objects.githubusercontent.com).</summary>
+    public static Task DownloadInstallerToFileAsync(
+        string sourceUrl,
+        string destinationPath,
+        string userAgent,
+        CancellationToken ct = default) =>
+        DownloadInstallerToFileAsync(sourceUrl, destinationPath, userAgent, progress: null, ct);
+
+    /// <inheritdoc cref="DownloadInstallerToFileAsync(string,string,string,CancellationToken)"/>
+    /// <param name="progress">Bytes lidos e total (se <c>Content-Length</c> existir).</param>
     public static async Task DownloadInstallerToFileAsync(
         string sourceUrl,
         string destinationPath,
         string userAgent,
+        IProgress<DownloadProgress>? progress,
         CancellationToken ct = default)
     {
         if (!IsTrustedGitHubDownloadUrl(sourceUrl))
@@ -119,9 +131,22 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
+        long? total = response.Content.Headers.ContentLength is { } len && len >= 0 ? len : null;
+        progress?.Report(new DownloadProgress(0, total));
+
         await using var network = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         await using var file = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await network.CopyToAsync(file, ct).ConfigureAwait(false);
+        var buffer = new byte[65536];
+        long read = 0;
+        while (true)
+        {
+            var n = await network.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false);
+            if (n <= 0)
+                break;
+            await file.WriteAsync(buffer.AsMemory(0, n), ct).ConfigureAwait(false);
+            read += n;
+            progress?.Report(new DownloadProgress(read, total));
+        }
     }
 
     private static (string? Name, string? Url) TryPickWindowsSetupAsset(JsonElement root)

@@ -82,11 +82,24 @@ public partial class App : Application
         _vm = new MainViewModel(_profiles, Persist, () => { _ = CheckForUpdatesAsync(manual: true); });
         _tray.SetEnabledMenuText(_vm.Enabled);
 
-        var startInTray = StartupRegistrationService.TrayStartupMatches(e.Args);
+        var postOta = StartupRegistrationService.PostOtaRelaunchMatches(e.Args);
+        var startInTray = StartupRegistrationService.TrayStartupMatches(e.Args) && !postOta;
 
         var main = new MainWindow { DataContext = _vm };
         main.Icon = CreateWindowIcon();
         MainWindow = main;
+
+        if (postOta && main is MainWindow mwPost)
+        {
+            void OnPostOtaFirstRender(object? s, EventArgs ev)
+            {
+                mwPost.ContentRendered -= OnPostOtaFirstRender;
+                mwPost.RecalculateWindowSize();
+                Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, PostOtaRelaunchToTray);
+            }
+
+            mwPost.ContentRendered += OnPostOtaFirstRender;
+        }
 
         if (startInTray)
         {
@@ -107,12 +120,52 @@ public partial class App : Application
             DispatcherPriority.ApplicationIdle,
             new Action(() =>
             {
+                if (postOta)
+                    return;
                 if (_profiles?.Snapshot is not { } snap)
                     return;
                 if (!ShouldRunScheduledUpdateCheck(snap))
                     return;
                 _ = CheckForUpdatesAsync(manual: false);
             }));
+    }
+
+    private void PostOtaRelaunchToTray()
+    {
+        var exe = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(exe))
+        {
+            MessageBox.Show(
+                "Could not locate the SmoothMice executable to finish the post-update restart.\n\n" +
+                "Close this window and start SmoothMice from the Start menu.",
+                "SmoothMice",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = StartupRegistrationService.TrayStartupArg,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                "SmoothMice could not restart in the notification area after the update.\n\n" +
+                $"{ex.Message}\n\n" +
+                "Close this window and start SmoothMice from the Start menu if needed.",
+                "SmoothMice",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        Shutdown(0);
     }
 
     private static void TryNotifyOtaInstallFailureFromLastRun()
@@ -237,13 +290,24 @@ public partial class App : Application
                     Directory.CreateDirectory(workDir);
                     var setupPath = Path.Combine(workDir, result.InstallerAssetName!);
 
+                    Dispatcher.Invoke(() => _vm?.StartUpdateBanner("Downloading update…"));
+                    var progress = new Progress<DownloadProgress>(p =>
+                    {
+                        Dispatcher.BeginInvoke(
+                            DispatcherPriority.Background,
+                            new Action(() => _vm?.ReportDownloadProgress(p)));
+                    });
+
                     await GitHubReleaseUpdateChecker
                         .DownloadInstallerToFileAsync(
                             result.InstallerDownloadUrl!,
                             setupPath,
                             SmoothMiceHttpUserAgent(),
+                            progress,
                             CancellationToken.None)
                         .ConfigureAwait(false);
+
+                    Dispatcher.Invoke(() => _vm?.SetUpdateBannerInstalling());
 
                     var installedExe = Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -252,13 +316,14 @@ public partial class App : Application
                     var errFlag = LastOtaSetupErrorPath();
                     var batPath = Path.Combine(workDir, "_run_install.bat");
                     // Wait for exit, then taskkill (best-effort) so Inno can replace SmoothMice.exe; /CLOSEAPPLICATIONS as backup.
+                    // After install: /postota = one normal layout pass, then app relaunches with /tray (fixes bad WPF size after OTA).
                     var bat = "@echo off\r\n" +
                               "timeout /t 5 /nobreak >nul\r\n" +
                               "taskkill /IM SmoothMice.exe /F >nul 2>&1\r\n" +
                               "timeout /t 2 /nobreak >nul\r\n" +
                               $"start /wait \"\" \"{EscapeForBatchPath(setupPath)}\" /VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART /CLOSEAPPLICATIONS\r\n" +
                               $"if errorlevel 1 echo OTA_SETUP_FAILED code %%ERRORLEVEL%% > \"{EscapeForBatchPath(errFlag)}\"\r\n" +
-                              $"if exist \"{EscapeForBatchPath(installedExe)}\" start \"\" \"{EscapeForBatchPath(installedExe)}\" /tray\r\n" +
+                              $"if exist \"{EscapeForBatchPath(installedExe)}\" start \"\" \"{EscapeForBatchPath(installedExe)}\" {StartupRegistrationService.PostOtaRelaunchArg}\r\n" +
                               "del \"%~f0\"\r\n";
 
                     await File.WriteAllTextAsync(batPath, bat, CancellationToken.None).ConfigureAwait(false);
@@ -290,6 +355,7 @@ public partial class App : Application
                         }
                         catch (Exception ex)
                         {
+                            _vm?.EndUpdateBanner();
                             MessageBox.Show(
                                 $"Could not start the installation.\n\n{ex.Message}",
                                 "SmoothMice",
@@ -298,6 +364,7 @@ public partial class App : Application
                             return;
                         }
 
+                        _vm?.EndUpdateBanner();
                         Shutdown(0);
                     });
                 }
@@ -305,11 +372,15 @@ public partial class App : Application
                 {
                     // User already agreed to install — always tell them if download / launcher prep failed
                     // (scheduled checks use manual=false but still show the install prompt).
-                    Dispatcher.Invoke(() => MessageBox.Show(
-                        $"Failed to download or prepare the update.\n\n{ex.Message}",
-                        "SmoothMice",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error));
+                    Dispatcher.Invoke(() =>
+                    {
+                        _vm?.EndUpdateBanner();
+                        MessageBox.Show(
+                            $"Failed to download or prepare the update.\n\n{ex.Message}",
+                            "SmoothMice",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                    });
                 }
             }
             else if (manual)

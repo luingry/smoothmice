@@ -5,7 +5,7 @@
         xmlns:vm="clr-namespace:SmoothMice.App.ViewModels"
         Title="SmoothMice"
         MinWidth="320"
-        MinHeight="520"
+        MinHeight="680"
         SizeToContent="WidthAndHeight"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
@@ -19,6 +19,7 @@
         Closing="MainWindow_OnClosing">
 
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <c:DoubleStringConverter x:Key="DoubleStr" />
         <c:IntStringConverter    x:Key="IntStr" />
 
@@ -276,6 +277,21 @@
                               SelectedValue="{Binding UpdateCheckFrequency, Mode=TwoWay}"
                               SelectionChanged="UpdateFreqCombo_OnSelectionChanged"/>
                 </DockPanel>
+                <StackPanel Margin="0,8,0,0"
+                            Visibility="{Binding UpdateBannerVisible, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding UpdateBannerStatus}"
+                               FontSize="11"
+                               Foreground="{StaticResource Brush.Muted}"
+                               Margin="0,0,0,4"
+                               TextWrapping="Wrap"/>
+                    <ProgressBar Height="8"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Value="{Binding UpdateBannerProgress}"
+                                 IsIndeterminate="{Binding UpdateBannerIndeterminate}"
+                                 Foreground="{StaticResource Brush.Accent}"
+                                 Background="{StaticResource Brush.Border}"/>
+                </StackPanel>
             </StackPanel>
         </Border>
 

@@ -7,6 +7,7 @@ using SmoothMice.Core.Config;
 using SmoothMice.Core.Profiles;
 using SmoothMice.Core.Scrolling;
 using SmoothMice.Core.Updates;
+using SmoothMice.Infrastructure.Updates;
 
 namespace SmoothMice.App.ViewModels;
 
@@ -20,6 +21,11 @@ public sealed class MainViewModel : ViewModelBase
     private bool _enabled;
     private ScrollProfile? _selected;
     private UpdateCheckFrequency _updateCheckFrequency;
+    private bool _updateFlowActive;
+    private bool _updateBannerVisible;
+    private string _updateBannerStatus = "";
+    private bool _updateBannerIndeterminate = true;
+    private double _updateBannerProgress;
 
     public static IReadOnlyList<string> AccelPresetNames { get; } =
         ["Linear", "Smooth", "Exponential"];
@@ -43,7 +49,9 @@ public sealed class MainViewModel : ViewModelBase
         AddProfileCommand  = new RelayCommand(_ => AddProfile());
         RemoveProfileCommand = new RelayCommand(
             _ => RemoveProfile(), _ => SelectedProfile is { IsGlobal: false });
-        CheckForUpdatesCommand = new RelayCommand(_ => _requestManualUpdateCheck());
+        CheckForUpdatesCommand = new RelayCommand(
+            _ => _requestManualUpdateCheck(),
+            _ => !UpdateFlowActive);
 
         ReloadFromManager();
     }
@@ -218,6 +226,76 @@ public sealed class MainViewModel : ViewModelBase
     public ICommand AddProfileCommand { get; }
     public ICommand RemoveProfileCommand { get; }
     public ICommand CheckForUpdatesCommand { get; }
+
+    public bool UpdateFlowActive => _updateFlowActive;
+
+    public bool UpdateBannerVisible
+    {
+        get => _updateBannerVisible;
+        private set => Set(ref _updateBannerVisible, value);
+    }
+
+    public string UpdateBannerStatus
+    {
+        get => _updateBannerStatus;
+        private set => Set(ref _updateBannerStatus, value);
+    }
+
+    public bool UpdateBannerIndeterminate
+    {
+        get => _updateBannerIndeterminate;
+        private set => Set(ref _updateBannerIndeterminate, value);
+    }
+
+    public double UpdateBannerProgress
+    {
+        get => _updateBannerProgress;
+        private set => Set(ref _updateBannerProgress, value);
+    }
+
+    public void StartUpdateBanner(string status)
+    {
+        _updateFlowActive = true;
+        CommandManager.InvalidateRequerySuggested();
+        Raise(nameof(UpdateFlowActive));
+        UpdateBannerVisible = true;
+        UpdateBannerStatus = status;
+        UpdateBannerIndeterminate = true;
+        UpdateBannerProgress = 0;
+    }
+
+    public void ReportDownloadProgress(DownloadProgress p)
+    {
+        if (p.TotalBytes is { } t && t > 0)
+        {
+            UpdateBannerIndeterminate = false;
+            UpdateBannerProgress = Math.Clamp(100.0 * p.BytesRead / t, 0, 100);
+        }
+        else
+        {
+            UpdateBannerIndeterminate = true;
+        }
+    }
+
+    public void SetUpdateBannerInstalling(string status = "Installing update…")
+    {
+        UpdateBannerStatus = status;
+        UpdateBannerIndeterminate = true;
+        UpdateBannerProgress = 100;
+    }
+
+    public void EndUpdateBanner()
+    {
+        if (!_updateFlowActive)
+            return;
+        _updateFlowActive = false;
+        UpdateBannerVisible = false;
+        UpdateBannerStatus = "";
+        UpdateBannerIndeterminate = true;
+        UpdateBannerProgress = 0;
+        CommandManager.InvalidateRequerySuggested();
+        Raise(nameof(UpdateFlowActive));
+    }
 
     public void ReloadFromManager()
     {

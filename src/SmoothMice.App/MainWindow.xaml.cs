@@ -180,8 +180,8 @@ public partial class MainWindow
         var snappedH = Math.Ceiling(physH) / dpi.DpiScaleY;
 
         SizeToContent = SizeToContent.Manual;
-        Width = snappedW;
-        Height = snappedH;
+        Width = Math.Max(snappedW, MinWidth);
+        Height = Math.Max(snappedH, MinHeight);
     }
 
     private void ProfileCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
