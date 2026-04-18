@@ -36,8 +36,7 @@ public sealed class SmoothScrollEngine
     /// </summary>
     public void PushPhysicalDelta(int rawDelta, ScrollProfileSettings settings, double accel)
     {
-        var sign = settings.ReverseWheelDirection ? -1 : 1;
-        var totalUnits = rawDelta * ScrollMath.StepScale(settings.StepSizePx) * accel * sign;
+        var totalUnits = rawDelta * ScrollMath.StepScale(settings.StepSizePx) * accel;
 
         // Choose decay time constant based on current settings.
         var decayTau = ComputeDecayTau(settings);

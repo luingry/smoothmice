@@ -140,12 +140,6 @@ public sealed class MainViewModel : ViewModelBase
         set { if (SelectedProfile is not null) SelectedProfile.Settings.HorizontalSmoothness = value; Raise(); }
     }
 
-    public bool ReverseWheelDirection
-    {
-        get => SelectedProfile?.Settings.ReverseWheelDirection ?? false;
-        set { if (SelectedProfile is not null) SelectedProfile.Settings.ReverseWheelDirection = value; Raise(); }
-    }
-
     // ── Commands ─────────────────────────────────────────────────────────
 
     public ICommand ResetAllCommand { get; }
@@ -216,7 +210,6 @@ public sealed class MainViewModel : ViewModelBase
         Raise(nameof(AccelerationMaxX));
         Raise(nameof(EnableForAllAppsByDefault));
         Raise(nameof(HorizontalSmoothness));
-        Raise(nameof(ReverseWheelDirection));
         Raise(nameof(SelectedDisplayName));
         Raise(nameof(IsGlobalProfile));
     }

@@ -107,7 +107,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- ═══ LEFT — Animation + Acceleration ═══════════════ -->
+                    <!-- ═══ LEFT — Animation + Behaviour ══════════════════ -->
                     <StackPanel Grid.Column="0">
 
                         <TextBlock Text="ANIMATION" Style="{StaticResource SectionHeader}"
@@ -131,8 +131,49 @@
                                                 UpdateSourceTrigger=LostFocus,
                                                 Converter={StaticResource DoubleStr}}"/>
 
-                        <!-- ── Acceleration ──────────────────────────── -->
-                        <TextBlock Text="ACCELERATION" Style="{StaticResource SectionHeader}"/>
+                        <TextBlock Text="BEHAVIOUR" Style="{StaticResource SectionHeader}"/>
+
+                        <CheckBox Content="Animation easing"
+                                  IsChecked="{Binding AnimationEasing, Mode=TwoWay}"
+                                  Checked="PersistCheck_OnChanged"
+                                  Unchecked="PersistCheck_OnChanged"
+                                  Margin="0,4,0,0"/>
+
+                        <CheckBox Content="Horizontal scrolling"
+                                  IsChecked="{Binding HorizontalSmoothness, Mode=TwoWay}"
+                                  Checked="PersistCheck_OnChanged"
+                                  Unchecked="PersistCheck_OnChanged"
+                                  Margin="0,8,0,0"/>
+
+                        <CheckBox Content="Enable for all apps"
+                                  IsChecked="{Binding EnableForAllAppsByDefault, Mode=TwoWay}"
+                                  Checked="PersistCheck_OnChanged"
+                                  Unchecked="PersistCheck_OnChanged"
+                                  Margin="0,8,0,0">
+                            <CheckBox.Style>
+                                <Style TargetType="CheckBox">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="FontSize"   Value="12"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGlobalProfile}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </CheckBox.Style>
+                        </CheckBox>
+
+                    </StackPanel>
+
+                    <!-- Separator -->
+                    <Rectangle Grid.Column="1" Fill="#E8E8E8" Width="1"
+                               VerticalAlignment="Stretch" Margin="0,4"/>
+
+                    <!-- ═══ RIGHT — Acceleration ═══════════════════════════ -->
+                    <StackPanel Grid.Column="2">
+
+                        <TextBlock Text="ACCELERATION" Style="{StaticResource SectionHeader}"
+                                   Margin="0,0,0,3"/>
 
                         <TextBlock Text="Curve preset" Style="{StaticResource FieldLabel}"/>
                         <ComboBox x:Name="AccelPresetCombo"
@@ -159,68 +200,6 @@
                                  Text="{Binding AccelerationDeltaMs, Mode=TwoWay,
                                                 UpdateSourceTrigger=LostFocus,
                                                 Converter={StaticResource IntStr}}"/>
-
-                    </StackPanel>
-
-                    <!-- Separator -->
-                    <Rectangle Grid.Column="1" Fill="#E8E8E8" Width="1"
-                               VerticalAlignment="Stretch" Margin="0,4"/>
-
-                    <!-- ═══ RIGHT — Behaviour ════════════════════════════ -->
-                    <StackPanel Grid.Column="2">
-
-                        <TextBlock Text="BEHAVIOUR" Style="{StaticResource SectionHeader}"
-                                   Margin="0,0,0,3"/>
-
-                        <CheckBox Content="Animation easing"
-                                  IsChecked="{Binding AnimationEasing, Mode=TwoWay}"
-                                  Checked="PersistCheck_OnChanged"
-                                  Unchecked="PersistCheck_OnChanged"
-                                  Margin="0,4,0,0"/>
-
-                        <CheckBox Content="Horizontal scrolling"
-                                  IsChecked="{Binding HorizontalSmoothness, Mode=TwoWay}"
-                                  Checked="PersistCheck_OnChanged"
-                                  Unchecked="PersistCheck_OnChanged"
-                                  Margin="0,8,0,0"/>
-
-                        <CheckBox Content="Reverse wheel direction"
-                                  IsChecked="{Binding ReverseWheelDirection, Mode=TwoWay}"
-                                  Checked="PersistCheck_OnChanged"
-                                  Unchecked="PersistCheck_OnChanged"
-                                  Margin="0,8,0,0"/>
-
-                        <CheckBox Content="Enable for all apps"
-                                  IsChecked="{Binding EnableForAllAppsByDefault, Mode=TwoWay}"
-                                  Checked="PersistCheck_OnChanged"
-                                  Unchecked="PersistCheck_OnChanged"
-                                  Margin="0,8,0,0">
-                            <CheckBox.Style>
-                                <Style TargetType="CheckBox">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Setter Property="FontSize"   Value="12"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsGlobalProfile}" Value="False">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </CheckBox.Style>
-                        </CheckBox>
-
-                        <!-- Curve reference -->
-                        <TextBlock Text="CURVE REFERENCE" Style="{StaticResource SectionHeader}"
-                                   Margin="0,20,0,3"/>
-                        <TextBlock FontSize="11" Foreground="#888" LineHeight="18"
-                                   TextWrapping="Wrap" SnapsToDevicePixels="True">
-                            <Run FontWeight="SemiBold">exp 0</Run><Run> → always 1×</Run>
-                            <LineBreak/>
-                            <Run FontWeight="SemiBold">exp 1</Run><Run> → linear (0.5× … 2×)</Run>
-                            <LineBreak/>
-                            <Run FontWeight="SemiBold">exp 1.3</Run><Run> → smooth (0.4× … 2.5×)</Run>
-                            <LineBreak/>
-                            <Run FontWeight="SemiBold">exp 2</Run><Run> → exponential (0.25× … 4×)</Run>
-                        </TextBlock>
 
                     </StackPanel>
                 </Grid>

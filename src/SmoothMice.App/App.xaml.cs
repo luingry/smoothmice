@@ -67,10 +67,24 @@ public partial class App : Application
         _vm = new MainViewModel(_profiles, Persist);
         _tray.SetEnabledMenuText(_vm.Enabled);
 
+        var startInTray = StartupRegistrationService.TrayStartupMatches(e.Args);
+
         var main = new MainWindow { DataContext = _vm };
         main.Icon = CreateWindowIcon();
         MainWindow = main;
-        main.Show();
+
+        if (startInTray)
+        {
+            main.ShowInTaskbar = false;
+            main.WindowState = WindowState.Minimized;
+            main.Show();
+            main.Hide();
+            main.ShowInTaskbar = true;
+        }
+        else
+        {
+            main.Show();
+        }
 
         _coordinator.RefreshEnabledState();
     }

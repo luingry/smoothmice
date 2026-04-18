@@ -21,7 +21,6 @@ public static class DefaultSettings
 
         EnableForAllAppsByDefault = true,
         HorizontalSmoothness      = true,
-        ReverseWheelDirection     = false,
     };
 
     public static AppSettings CreateAppSettings() => new()

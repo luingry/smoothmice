@@ -38,7 +38,7 @@ Self-contained publish (for installer payload). In Git Bash, prefer explicit MSB
 dotnet publish src/SmoothMice.App/SmoothMice.App.csproj -c Release -r win-x64 -p:SelfContained=true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
-Published binaries default to `src/SmoothMice.App/bin/Release/net8.0-windows/win-x64/publish/`.
+Published binaries: `src/SmoothMice.App/bin/Release/net8.0-windows/win-x64/publish/SmoothMice-{Version}.exe` (o `{Version}` vem de [Directory.Build.props](Directory.Build.props); o instalador Inno copia-o como `SmoothMice.exe` para `{app}`).
 
 ## Tests
 
@@ -67,19 +67,17 @@ dotnet test SmoothMice.sln -c Release
 
 Or double-click `installer\build-installer.cmd` (opens a window; pauses at the end).
 
-**GitHub Releases** ship the **self-contained** installer (`SmoothMice_Setup_*.exe`, ~64 MB): no separate .NET install on the target PC.
+**Instalador por defeito** (`.\installer\build-installer.ps1`): **self-contained** (`SmoothMice_Setup_*.exe`, ~64 MB), igual ao asset típico de release — sem instalar .NET à parte no PC alvo.
 
-**Local default (small installer):** framework-dependent, single-file `SmoothMice.exe` (~0.2 MB). The target PC must have **[.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/8.0)** installed (pick “Desktop Runtime”, not only “Runtime”).
-
-**Self-contained installer (same as release asset):** bundles the .NET runtime:
+**Instalador leve (framework-dependent):** o payload é o single-file `SmoothMice-{Version}.exe` em `publish\` (~0.2 MB); o alvo precisa de **[.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/8.0)**. Após instalar, o ficheiro em disco continua `SmoothMice.exe`.
 
 ```powershell
-.\installer\build-installer.ps1 -SelfContained
+.\installer\build-installer.ps1 -FrameworkDependent
 ```
 
-Output: `artifacts\installer\SmoothMice_Setup_0.1.0.exe` (version matches `#define MyAppVersion` in [installer/SmoothMice.Installer.iss](installer/SmoothMice.Installer.iss)).
+Output: `artifacts\installer\SmoothMice_Setup_{version}.exe` — o `version` é o MSBuild `Version` em [Directory.Build.props](Directory.Build.props) (o script [installer/build-installer.ps1](installer/build-installer.ps1) passa-o ao Inno). Histórico por versão: [release-notes.md](release-notes.md).
 
-Manual steps: `dotnet publish` as in [installer/build-installer.ps1](installer/build-installer.ps1), then run `ISCC.exe installer\SmoothMice.Installer.iss`.
+Manual steps: `dotnet publish` as in [installer/build-installer.ps1](installer/build-installer.ps1), then `ISCC.exe /DMyAppVersion=x.y.z /DMyPublishedExe=SmoothMice-x.y.z.exe installer\SmoothMice.Installer.iss` (valores alinhados a `Directory.Build.props`), or use the script.
 
 ## Repository
 

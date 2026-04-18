@@ -2,7 +2,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>SmoothMice.App</RootNamespace>
-    <AssemblyName>SmoothMice</AssemblyName>
+    <!-- Artefacto publish: SmoothMice-{Version}.exe; na instalação o Inno copia como SmoothMice.exe -->
+    <AssemblyName>SmoothMice-$(Version)</AssemblyName>
     <ApplicationIcon />
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <UseWPF>true</UseWPF>

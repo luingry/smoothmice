@@ -34,7 +34,6 @@ public sealed class ScrollProfileSettings
     // ── Scrolling behaviour ───────────────────────────────────────────────
     public bool EnableForAllAppsByDefault { get; set; } = true;
     public bool HorizontalSmoothness { get; set; } = true;
-    public bool ReverseWheelDirection { get; set; } = false;
 
     public ScrollProfileSettings Clone() => (ScrollProfileSettings)MemberwiseClone();
 }

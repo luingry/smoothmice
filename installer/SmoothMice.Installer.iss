@@ -2,9 +2,17 @@
 ; O script assume que fizeste publish antes (ver build-installer.ps1).
 
 #define MyAppName "SmoothMice"
-#define MyAppVersion "0.1.0"
+; MyAppVersion vem de ISCC /D (ver build-installer.ps1; valor = <Version> em Directory.Build.props).
+#ifndef MyAppVersion
+#error Definir MyAppVersion: compilar via installer\build-installer.ps1 ou ISCC /DMyAppVersion=x.y.z
+#endif
 #define MyAppPublisher "SmoothMice"
+; Nome estável após instalar (atalhos, Run, ícones):
 #define MyAppExeName "SmoothMice.exe"
+; Ficheiro gerado pelo publish (AssemblyName = SmoothMice-{Version}); passar /DMyPublishedExe=...
+#ifndef MyPublishedExe
+#error Definir MyPublishedExe (ex.: ISCC /DMyPublishedExe=SmoothMice-0.3.0.exe); ver build-installer.ps1
+#endif
 ; Pasta relativa a este ficheiro (installer\)
 #define PublishDir "..\src\SmoothMice.App\bin\Release\net8.0-windows\win-x64\publish"
 
@@ -36,8 +44,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startup"; Description: "Start SmoothMice when Windows starts"; GroupDescription: "Startup:"; Flags: checkedonce
 
 [Files]
-; Single-file publish: only the main exe (avoids shipping *.pdb from referenced projects)
-Source: "{#PublishDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Publish single-file = MyPublishedExe; instala como MyAppExeName (nome fixo para arranque e atualizações)
+Source: "{#PublishDir}\{#MyPublishedExe}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -48,4 +56,4 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "SmoothMice"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: startup
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "SmoothMice"; ValueData: """{app}\{#MyAppExeName}"" /tray"; Flags: uninsdeletevalue; Tasks: startup

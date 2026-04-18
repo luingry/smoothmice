@@ -1,12 +1,13 @@
 # Publica SmoothMice (win-x64) e compila o instalador Inno Setup 6.
 # Requer: .NET 8 SDK + Inno Setup 6 (ISCC.exe)
 #
-# Por defeito: framework-dependent + single-file (~230 KB exe + pdbs).
-#   O PC alvo precisa de ".NET 8 Desktop Runtime" (Windows x64).
-# Para bundle com runtime .NET (~70 MB exe autocontido; usa -p:SelfContained=true):
-#   powershell -File installer\build-installer.ps1 -SelfContained
+# Por defeito: self-contained + single-file (~64 MB setup) — instalador completo, sem runtime .NET no PC alvo.
+# Instalador leve (framework-dependent ~0.2 MB exe no payload; runtime .NET obrigatório no alvo):
+#   powershell -File installer\build-installer.ps1 -FrameworkDependent
+# -SelfContained mantem-se como no-op util (compat); o padrao ja e autocontido.
 
 param(
+  [switch]$FrameworkDependent,
   [switch]$SelfContained
 )
 
@@ -18,9 +19,10 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
   Write-Error "SDK .NET nao encontrado no PATH. Instala .NET 8 SDK: https://dotnet.microsoft.com/download/dotnet/8.0"
 }
 
-Write-Host ">> dotnet publish... (SelfContained=$SelfContained)"
+$useSelfContained = -not $FrameworkDependent
+Write-Host ">> dotnet publish... (SelfContained=$useSelfContained; FrameworkDependent=$FrameworkDependent)"
 
-if ($SelfContained) {
+if ($useSelfContained) {
   dotnet publish "src/SmoothMice.App/SmoothMice.App.csproj" `
     -c Release `
     -r win-x64 `
@@ -58,8 +60,20 @@ Depois volta a correr este script.
 "@
 }
 
-Write-Host ">> ISCC (Inno)..."
-& $iscc (Join-Path $PSScriptRoot "SmoothMice.Installer.iss")
+$appCsproj = Join-Path $repoRoot "src\SmoothMice.App\SmoothMice.App.csproj"
+$appVersion = dotnet msbuild $appCsproj -getProperty:Version -nologo
+if ([string]::IsNullOrWhiteSpace($appVersion)) {
+  Write-Error "Nao foi possivel ler <Version> do projeto (Directory.Build.props)."
+}
+
+$assemblyName = dotnet msbuild $appCsproj -getProperty:AssemblyName -nologo
+if ([string]::IsNullOrWhiteSpace($assemblyName)) {
+  Write-Error "Nao foi possivel ler AssemblyName do projeto."
+}
+$publishedExe = "$assemblyName.exe"
+
+Write-Host ">> ISCC (Inno)... (MyAppVersion=$appVersion; MyPublishedExe=$publishedExe)"
+& $iscc "/DMyAppVersion=$appVersion" "/DMyPublishedExe=$publishedExe" (Join-Path $PSScriptRoot "SmoothMice.Installer.iss")
 
 $out = Join-Path $repoRoot "artifacts\installer"
 Write-Host ""

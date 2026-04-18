@@ -1,5 +1,7 @@
 <Project>
   <PropertyGroup>
+    <!-- Versão semver da app + instalador; única fonte de verdade (bump manual com commits). -->
+    <Version>0.3.1</Version>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

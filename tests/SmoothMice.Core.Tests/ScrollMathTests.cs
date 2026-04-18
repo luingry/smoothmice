@@ -87,7 +87,7 @@ public class ScrollMathTests
         var settings = new ScrollProfileSettings
         {
             StepSizePx = 20, AnimationTimeMs = 100,
-            AnimationEasing = false, TailToHeadRatio = 1, ReverseWheelDirection = false,
+            AnimationEasing = false, TailToHeadRatio = 1,
         };
 
         var engine = new SmoothScrollEngine();
