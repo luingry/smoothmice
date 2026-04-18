@@ -11,6 +11,7 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 - **OTA:** após Inno, arranque com `/postota` (janela normal), layout completo, depois reinício automático com `/tray` — evita truncagem / tamanho errado da UI.
 - **OTA:** barra de progresso na secção «Updates» durante a descarga (e estado «Installing update…» antes de fechar).
 - **UI:** `MinHeight` maior e snap de tamanho respeita `MinWidth`/`MinHeight` para não cortar o rodapé.
+- **Instalador (Inno):** `SetupIconFile` com `SmoothMice.ico` — ícone do `SmoothMice_Setup_*.exe` e do assistente.
 
 ## 0.3.8 — 2026-04-18
 

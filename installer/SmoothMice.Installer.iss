@@ -15,10 +15,13 @@
 #endif
 ; Pasta relativa a este ficheiro (installer\)
 #define PublishDir "..\src\SmoothMice.App\bin\Release\net8.0-windows\win-x64\publish"
+; Ícone do Setup.exe / assistente (mesmo .ico da app WPF)
+#define AppIcon "..\src\SmoothMice.App\SmoothMice.ico"
 
 [Setup]
 AppId={{B5F3C2A1-4D6E-4F90-9A1B-2C3D4E5F6078}
 AppName={#MyAppName}
+SetupIconFile={#AppIcon}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={localappdata}\Programs\{#MyAppName}
