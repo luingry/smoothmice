@@ -1,0 +1,65 @@
+---
+description: Versão semver, release-notes, commits, compilação, instalador completo, GitHub Release em main
+alwaysApply: true
+---
+
+# Versão, release notes, commits, compilação, instalador
+
+## Fonte de verdade e histórico
+
+- **Versão:** [Directory.Build.props](Directory.Build.props) — `<Version>MAJOR.MINOR.PATCH</Version>`.
+- **Histórico humano:** [release-notes.md](release-notes.md) — antes de **qualquer bump**, lê este ficheiro; depois adiciona no **topo** uma secção `## X.Y.Z — data` com bullets do que mudou (a partir do diff pendente ou do commit).
+- Instalador Inno: [installer/build-installer.ps1](installer/build-installer.ps1) passa `MyAppVersion` e `MyPublishedExe` ao ISCC (valores de MSBuild). Não duplicar versão no `.iss`.
+
+## Pedido de **instalador**
+
+- Palavra-chave **instalador** = **sempre** o setup **self-contained completo** (~64 MB): **runtime .NET incorporado** no asset; nunca responder só com o `.exe` framework-dependent da pasta `publish`.
+- Correr `.\installer\build-installer.ps1` **sem** `-FrameworkDependent` (default do repo).
+- Indicar o caminho: `artifacts\installer\SmoothMice_Setup_{Version}.exe` (`Version` = [Directory.Build.props](Directory.Build.props)).
+- O `.exe` na pasta `publish\` chama-se `SmoothMice-{Version}.exe` (artefacto de compilação); **não** é o “instalador” completo.
+
+## Pedido de **compilação** / publish / build de release
+
+Quando o utilizador pedir compilar (ou publicar de forma que implique release), **antes** do `dotnet`/`build-installer`:
+
+1. **Consultar** [release-notes.md](release-notes.md) (última versão registada vs `<Version>` nos props).
+2. Rever **alterações pendentes** (`git diff`, `git status`; incluir staged). Se não houver mudança relevante desde a última entrada em release-notes (só rebuild), **não** fazer bump nem secção nova — avisar.
+3. Caso contrário: classificar **MAJOR / MINOR / PATCH** (tabela abaixo), atualizar `<Version>` em `Directory.Build.props`, e **atualizar release-notes.md** (nova secção no topo com data e bullets fiéis ao diff).
+4. Só depois executar build/publish/instalador conforme pedido.
+
+| Mudança | Bump |
+|---------|--------|
+| Breaking / incompatível | **MAJOR** |
+| Funcionalidade nova compatível | **MINOR** |
+| Correção, docs, chore sem impacto de produto | **PATCH** |
+
+## Commits (sem pedido explícito de compilação)
+
+Sempre que preparares um **commit** para o repositório: alinhar bump + `release-notes.md` + `<Version>` no **mesmo** conjunto de alterações, salvo o utilizador pedir para não versionar. Bump continua **manual** (sem ferramenta automática de semver).
+
+## Push de **nova versão** em `main` → **GitHub Release**
+
+Quando alterações com bump de `<Version>` forem **integradas em `main`** (merge ou push direto que suba versão de produto):
+
+1. **Criar uma [GitHub Release](https://docs.github.com/repositories/releasing-projects-on-github/managing-releases-in-a-repository)** para o tag/versão correspondente (tag sugerida: `v{Version}` alinhada a `Directory.Build.props`).
+2. **Anexar obrigatoriamente** o instalador **self-contained completo**: `artifacts\installer\SmoothMice_Setup_{Version}.exe` (gerado com `.\installer\build-installer.ps1` **sem** `-FrameworkDependent`).
+3. No **texto da release** (descrição), incluir sempre uma secção com **instruções para gerar o instalador menor** (framework-dependent), por exemplo:
+   - Comando: `.\installer\build-installer.ps1 -FrameworkDependent`
+   - Requisito no PC alvo: [.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/8.0) (“Desktop Runtime”, não só “Runtime”).
+   - Referência: [README.md](README.md) (secção instalador) e [installer/build-installer.ps1](installer/build-installer.ps1).
+
+Copiar para a release o resumo relevante de [release-notes.md](release-notes.md) para essa versão.
+
+## Checklist rápido (commit ou compilação com bump)
+
+1. Ler `release-notes.md`.
+2. Classificar mudança → MAJOR / MINOR / PATCH.
+3. Atualizar `<Version>` em `Directory.Build.props`.
+4. Nova secção no topo de `release-notes.md`.
+5. Commit e/ou comando de build.
+
+## Checklist após versão nova em `main`
+
+1. Build instalador completo (`build-installer.ps1`).
+2. Criar GitHub Release + anexar `SmoothMice_Setup_{Version}.exe`.
+3. Descrição da release: notas da versão + **passos do instalador menor** (comando `-FrameworkDependent` + runtime .NET).
