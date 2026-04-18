@@ -2,6 +2,8 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
 using SmoothMice.App.ViewModels;
 
 namespace SmoothMice.App;
@@ -12,6 +14,7 @@ public partial class MainWindow
     private bool _presetSuppress;
     private bool _loaded;
     private bool _namesEventsWired;
+    private bool _clientSizeSnapped;
 
     public IReadOnlyList<string> AccelPresetNames => MainViewModel.AccelPresetNames;
 
@@ -111,6 +114,12 @@ public partial class MainWindow
         ((App)Application.Current).PersistFromUi();
     }
 
+    private void UpdateFreqCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_loaded) return;
+        ((App)Application.Current).PersistFromUi();
+    }
+
     private void Numeric_OnLostFocus(object sender, RoutedEventArgs e)
     {
         if (!_loaded) return;
@@ -131,5 +140,36 @@ public partial class MainWindow
             "SmoothMice",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
+    }
+
+    /// <summary>
+    /// WPF: SizeToContent width+height with non-resizable chrome can leave a black strip at the client edge
+    /// (HWND vs renderer misalignment). Snap outer size to whole device pixels and stop auto-sizing.
+    /// https://github.com/dotnet/wpf/issues/9816
+    /// </summary>
+    private void MainWindow_OnContentRendered(object? sender, EventArgs e)
+    {
+        if (_clientSizeSnapped)
+            return;
+
+        if (ActualWidth <= 0 || ActualHeight <= 0)
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.Loaded,
+                new Action(() => MainWindow_OnContentRendered(sender, e)));
+            return;
+        }
+
+        _clientSizeSnapped = true;
+
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var physW = ActualWidth * dpi.DpiScaleX;
+        var physH = ActualHeight * dpi.DpiScaleY;
+        var snappedW = Math.Ceiling(physW) / dpi.DpiScaleX;
+        var snappedH = Math.Ceiling(physH) / dpi.DpiScaleY;
+
+        SizeToContent = SizeToContent.Manual;
+        Width = snappedW;
+        Height = snappedH;
     }
 }

@@ -11,6 +11,7 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         Loaded="MainWindow_OnLoaded"
+        ContentRendered="MainWindow_OnContentRendered"
         Closing="MainWindow_OnClosing">
 
     <Window.Resources>
@@ -53,7 +54,11 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="16,12,16,10">
+    <!-- Background + layout rounding on root avoids empty strip (WPF SizeToContent + fixed resize chrome). -->
+    <Grid Margin="16,12,16,10"
+          Background="#F0F0F0"
+          UseLayoutRounding="True"
+          SnapsToDevicePixels="True">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -63,14 +68,28 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- ── Title ────────────────────────────────────────────────────── -->
+        <!-- ── Title + version ──────────────────────────────────────────── -->
         <Grid Grid.Row="0" Margin="0,0,0,10">
-            <TextBlock Text="SmoothMice" FontSize="20" FontWeight="SemiBold"
-                       Foreground="#111" HorizontalAlignment="Center"
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0">
+                <TextBlock Text="SmoothMice" FontSize="20" FontWeight="SemiBold"
+                           Foreground="#111" HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           SnapsToDevicePixels="True"/>
+                <Button Content="?" Width="24" Height="24"
+                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Click="Help_OnClick"/>
+            </Grid>
+            <TextBlock x:Name="VersionLabel"
+                       Grid.Row="1"
+                       HorizontalAlignment="Center"
+                       Margin="0,2,0,0"
+                       FontSize="9"
+                       Foreground="#BBBBBB"
                        SnapsToDevicePixels="True"/>
-            <Button Content="?" Width="24" Height="24"
-                    HorizontalAlignment="Right" VerticalAlignment="Center"
-                    Click="Help_OnClick"/>
         </Grid>
 
         <!-- ── Global toggles ───────────────────────────────────────────── -->
@@ -86,18 +105,36 @@
                       Unchecked="PersistCheck_OnChanged"/>
         </StackPanel>
 
+        <!-- ── Updates ─────────────────────────────────────────────────── -->
+        <StackPanel Grid.Row="2" Margin="0,0,0,10">
+            <TextBlock Text="ATUALIZAÇÕES" Style="{StaticResource SectionHeader}" Margin="0,0,0,3"/>
+            <DockPanel LastChildFill="True">
+                <Button Content="Verificar atualizações" DockPanel.Dock="Right"
+                        Padding="10,4" Margin="10,0,0,0"
+                        Command="{Binding CheckForUpdatesCommand}"/>
+                <ComboBox x:Name="UpdateFreqCombo"
+                          DisplayMemberPath="Label"
+                          SelectedValuePath="Frequency"
+                          ItemsSource="{Binding UpdateFrequencyOptions}"
+                          SelectedValue="{Binding UpdateCheckFrequency, Mode=TwoWay}"
+                          SelectionChanged="UpdateFreqCombo_OnSelectionChanged"/>
+            </DockPanel>
+        </StackPanel>
+
         <!-- ── Profile selector ─────────────────────────────────────────── -->
-        <ComboBox Grid.Row="2" x:Name="ProfileCombo"
+        <ComboBox Grid.Row="3" x:Name="ProfileCombo"
                   Margin="0,0,0,10"
                   SelectionChanged="ProfileCombo_OnSelectionChanged"/>
 
         <!-- ── Settings card ────────────────────────────────────────────── -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                 Background="White"
                 CornerRadius="8"
                 BorderBrush="#D8D8D8"
                 BorderThickness="1">
-            <Grid Margin="16,12">
+            <Grid Margin="16,12"
+                  UseLayoutRounding="True"
+                  SnapsToDevicePixels="True">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" MinWidth="220"/>
                         <ColumnDefinition Width="12"/>
@@ -203,7 +240,7 @@
         </Border>
 
         <!-- ── Action bar ────────────────────────────────────────────────── -->
-        <DockPanel Grid.Row="4" LastChildFill="False" Margin="0,10,0,0">
+        <DockPanel Grid.Row="5" LastChildFill="False" Margin="0,10,0,0">
             <Button Content="Reset All" DockPanel.Dock="Left"
                     Padding="10,4" Command="{Binding ResetAllCommand}"/>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
@@ -213,13 +250,5 @@
                         Command="{Binding RemoveProfileCommand}"/>
             </StackPanel>
         </DockPanel>
-
-        <TextBlock x:Name="VersionLabel"
-                   Grid.Row="5"
-                   HorizontalAlignment="Center"
-                   Margin="0,6,0,2"
-                   FontSize="9"
-                   Foreground="#BBBBBB"
-                   SnapsToDevicePixels="True"/>
     </Grid>
 </Window>

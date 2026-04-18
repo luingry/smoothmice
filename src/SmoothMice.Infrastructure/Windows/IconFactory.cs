@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 
 namespace SmoothMice.Infrastructure.Windows;
 
@@ -13,7 +14,19 @@ public static class IconFactory
     public static Icon CreateMouseIcon(int size = 32)
     {
         using var bmp = DrawMouseBitmap(size);
-        return Icon.FromHandle(bmp.GetHicon());
+        var hIcon = bmp.GetHicon();
+        try
+        {
+            using var tmp = Icon.FromHandle(hIcon);
+            using var ms = new MemoryStream();
+            tmp.Save(ms);
+            ms.Position = 0;
+            return new Icon(ms);
+        }
+        finally
+        {
+            _ = NativeMethods.DestroyIcon(hIcon);
+        }
     }
 
     /// <summary>Returns the raw HBITMAP handle (caller owns lifetime).</summary>
@@ -21,6 +34,48 @@ public static class IconFactory
     {
         using var bmp = DrawMouseBitmap(size);
         return bmp.GetHbitmap();
+    }
+
+    /// <summary>
+    /// Writes a multi-resolution .ico (PNG frames) for MSBuild <c>ApplicationIcon</c>
+    /// so the Windows taskbar and shell use the correct image.
+    /// </summary>
+    public static void SaveApplicationIconFile(string path, int[]? sizes = null)
+    {
+        sizes ??= [16, 24, 32, 48, 64, 128, 256];
+        var pngChunks = new List<byte[]>(sizes.Length);
+        foreach (var dim in sizes)
+        {
+            using var bmp = DrawMouseBitmap(dim);
+            using var ms = new MemoryStream();
+            bmp.Save(ms, ImageFormat.Png);
+            pngChunks.Add(ms.ToArray());
+        }
+
+        using var fs = File.Create(path);
+        using var bw = new BinaryWriter(fs);
+        bw.Write((ushort)0);
+        bw.Write((ushort)1);
+        bw.Write((ushort)pngChunks.Count);
+        var offset = 6 + 16 * pngChunks.Count;
+        for (var i = 0; i < pngChunks.Count; i++)
+        {
+            var dim = sizes[i];
+            var w = dim >= 256 ? (byte)0 : (byte)dim;
+            var h = w;
+            bw.Write(w);
+            bw.Write(h);
+            bw.Write((byte)0);
+            bw.Write((byte)0);
+            bw.Write((ushort)1);
+            bw.Write((ushort)32);
+            bw.Write(pngChunks[i].Length);
+            bw.Write(offset);
+            offset += pngChunks[i].Length;
+        }
+
+        foreach (var chunk in pngChunks)
+            bw.Write(chunk);
     }
 
     // ── Drawing ───────────────────────────────────────────────────────────

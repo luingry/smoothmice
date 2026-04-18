@@ -1,4 +1,5 @@
 using SmoothMice.Core.Profiles;
+using SmoothMice.Core.Updates;
 
 namespace SmoothMice.Core.Config;
 
@@ -29,6 +30,8 @@ public static class DefaultSettings
         AutoStartOnLogin  = true,
         Enabled           = true,
         SelectedProfileId = GlobalProfileId,
+        UpdateCheckFrequency = UpdateCheckFrequency.DailyOnStartup,
+        LastUpdateCheckUtc = null,
         Profiles =
         [
             new ScrollProfile

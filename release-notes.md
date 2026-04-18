@@ -4,6 +4,14 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 0.3.3 — 2026-04-18
+
+### Alterações
+
+- **Atualizações:** verificação contra releases no GitHub (agendada conforme frequência + botão «Verificar atualizações»); descarga do instalador `SmoothMice_Setup_*.exe` e instalação silenciosa com reabertura em `/tray` quando aplicável; `UpdateCheckFrequency` e `LastUpdateCheckUtc` persistidos em `settings.json`.
+- **UI:** secção «ATUALIZAÇÕES» na janela principal; texto da versão (semver) discreto por baixo do título «SmoothMice»; `ContentRendered` e fundo/layout no `Grid` raiz para evitar faixa vazia com `SizeToContent`.
+- **Ícone:** geração de `.ico` multi-resolução (PNG) para o executável; cópia do ícone da bandeija com libertação correta do handle (`DestroyIcon`).
+
 ## 0.3.2 — 2026-04-18
 
 ### Alterações

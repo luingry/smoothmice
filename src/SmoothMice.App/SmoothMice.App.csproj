@@ -4,10 +4,13 @@
     <RootNamespace>SmoothMice.App</RootNamespace>
     <!-- Artefacto publish: SmoothMice-{Version}.exe; na instalação o Inno copia como SmoothMice.exe -->
     <AssemblyName>SmoothMice-$(Version)</AssemblyName>
-    <ApplicationIcon />
+    <ApplicationIcon>SmoothMice.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="SmoothMice.ico" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SmoothMice.Core\SmoothMice.Core.csproj" />
     <ProjectReference Include="..\SmoothMice.Infrastructure\SmoothMice.Infrastructure.csproj" />

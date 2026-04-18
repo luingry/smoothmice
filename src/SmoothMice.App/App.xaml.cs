@@ -1,13 +1,19 @@
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Reflection;
+using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using SmoothMice.App.ViewModels;
 using SmoothMice.Core.Profiles;
+using SmoothMice.Core.Updates;
 using SmoothMice.Infrastructure.Persistence;
 using SmoothMice.Infrastructure.Tray;
+using SmoothMice.Infrastructure.Updates;
 using SmoothMice.Infrastructure.Windows;
 
 namespace SmoothMice.App;
@@ -20,6 +26,8 @@ public partial class App : Application
     private TrayIconService? _tray;
     private StartupRegistrationService? _startup;
     private MainViewModel? _vm;
+    private GitHubReleaseUpdateChecker? _updateChecker;
+    private readonly SemaphoreSlim _updateCheckGate = new(1, 1);
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -64,7 +72,8 @@ public partial class App : Application
         };
         _tray.ExitRequested += (_, _) => Shutdown();
 
-        _vm = new MainViewModel(_profiles, Persist);
+        _updateChecker = new GitHubReleaseUpdateChecker();
+        _vm = new MainViewModel(_profiles, Persist, () => { _ = CheckForUpdatesAsync(manual: true); });
         _tray.SetEnabledMenuText(_vm.Enabled);
 
         var startInTray = StartupRegistrationService.TrayStartupMatches(e.Args);
@@ -87,6 +96,217 @@ public partial class App : Application
         }
 
         _coordinator.RefreshEnabledState();
+
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(() =>
+            {
+                if (_profiles?.Snapshot is not { } snap)
+                    return;
+                if (!ShouldRunScheduledUpdateCheck(snap))
+                    return;
+                _ = CheckForUpdatesAsync(manual: false);
+            }));
+    }
+
+    private static bool ShouldRunScheduledUpdateCheck(AppSettings s) =>
+        s.UpdateCheckFrequency switch
+        {
+            UpdateCheckFrequency.Never => false,
+            UpdateCheckFrequency.DailyOnStartup => true,
+            UpdateCheckFrequency.Weekly =>
+                s.LastUpdateCheckUtc is not { } last
+                || DateTimeOffset.UtcNow - last >= TimeSpan.FromDays(7),
+            UpdateCheckFrequency.Monthly =>
+                s.LastUpdateCheckUtc is not { } lastM
+                || DateTimeOffset.UtcNow - lastM >= TimeSpan.FromDays(30),
+            _ => false,
+        };
+
+    private async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (_profiles is null || _repo is null || _updateChecker is null)
+            return;
+
+        if (!await _updateCheckGate.WaitAsync(0).ConfigureAwait(false))
+            return;
+
+        try
+        {
+            var current = TryGetCurrentAppVersion();
+            var result = await _updateChecker
+                .QueryLatestAsync(current, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            if (!result.Succeeded)
+            {
+                if (manual)
+                {
+                    Dispatcher.Invoke(() => MessageBox.Show(
+                        $"Não foi possível verificar atualizações.\n\n{result.ErrorMessage}",
+                        "SmoothMice",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning));
+                }
+
+                return;
+            }
+
+            _profiles.SetLastSuccessfulUpdateCheckUtc(DateTimeOffset.UtcNow);
+            _repo.Save(_profiles.Snapshot);
+
+            if (result.UpdateAvailable)
+            {
+                var wantsInstall = false;
+                Dispatcher.Invoke(() =>
+                {
+                    if (string.IsNullOrWhiteSpace(result.InstallerDownloadUrl) ||
+                        string.IsNullOrWhiteSpace(result.InstallerAssetName))
+                    {
+                        var open = MessageBox.Show(
+                            $"Está disponível a versão {result.LatestVersionLabel}, mas não foi encontrado o instalador " +
+                            "(SmoothMice_Setup_*.exe) nos assets desta release no GitHub.\n\n" +
+                            "Abrir a página da release?",
+                            "SmoothMice — atualização",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Warning);
+                        if (open == MessageBoxResult.Yes && result.ReleasePageUrl is { } page)
+                            OpenUrlInBrowser(page);
+                        return;
+                    }
+
+                    var go = MessageBox.Show(
+                        $"Está disponível a versão {result.LatestVersionLabel}.\n\n" +
+                        "Deseja descarregar e instalar agora? Será usada a instalação silenciosa (Inno Setup); " +
+                        "o programa fecha durante a instalação e tenta reabrir em seguida.",
+                        "SmoothMice — atualização",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    wantsInstall = go == MessageBoxResult.Yes;
+                });
+
+                if (!wantsInstall)
+                    return;
+
+                try
+                {
+                    var workDir = Path.Combine(Path.GetTempPath(), "SmoothMiceUpdate", Guid.NewGuid().ToString("N"));
+                    Directory.CreateDirectory(workDir);
+                    var setupPath = Path.Combine(workDir, result.InstallerAssetName!);
+
+                    await GitHubReleaseUpdateChecker
+                        .DownloadInstallerToFileAsync(
+                            result.InstallerDownloadUrl!,
+                            setupPath,
+                            SmoothMiceHttpUserAgent(),
+                            CancellationToken.None)
+                        .ConfigureAwait(false);
+
+                    var installedExe = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "Programs", "SmoothMice", "SmoothMice.exe");
+
+                    var batPath = Path.Combine(workDir, "_run_install.bat");
+                    var bat = "@echo off\r\n" +
+                              $"start /wait \"\" \"{EscapeForBatchPath(setupPath)}\" /VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART\r\n" +
+                              $"if exist \"{EscapeForBatchPath(installedExe)}\" start \"\" \"{EscapeForBatchPath(installedExe)}\" /tray\r\n" +
+                              "del \"%~f0\"\r\n";
+
+                    await File.WriteAllTextAsync(batPath, bat, CancellationToken.None).ConfigureAwait(false);
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        try
+                        {
+                            _vm?.Save();
+                            _repo.Save(_profiles.Snapshot);
+                        }
+                        catch
+                        {
+                            // best effort antes de fechar
+                        }
+
+                        try
+                        {
+                            var psi = new ProcessStartInfo
+                            {
+                                FileName = "cmd.exe",
+                                UseShellExecute = false,
+                                CreateNoWindow = true,
+                                WindowStyle = ProcessWindowStyle.Hidden,
+                            };
+                            psi.ArgumentList.Add("/c");
+                            psi.ArgumentList.Add(batPath);
+                            Process.Start(psi);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(
+                                $"Não foi possível iniciar a instalação.\n\n{ex.Message}",
+                                "SmoothMice",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error);
+                            return;
+                        }
+
+                        Shutdown(0);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    if (manual)
+                    {
+                        Dispatcher.Invoke(() => MessageBox.Show(
+                            $"Falha ao descarregar ou instalar.\n\n{ex.Message}",
+                            "SmoothMice",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error));
+                    }
+                }
+            }
+            else if (manual)
+            {
+                Dispatcher.Invoke(() => MessageBox.Show(
+                    "Está a usar a versão mais recente.",
+                    "SmoothMice",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information));
+            }
+        }
+        finally
+        {
+            _updateCheckGate.Release();
+        }
+    }
+
+    private static string SmoothMiceHttpUserAgent()
+    {
+        var v = TryGetCurrentAppVersion()?.ToString(3) ?? "0";
+        return $"SmoothMice/{v} (+https://github.com/luingry/smoothmice)";
+    }
+
+    /// <summary>Duplica aspas para uso dentro de linhas batch entre aspas duplas.</summary>
+    private static string EscapeForBatchPath(string path) =>
+        path.Replace("\"", "\"\"", StringComparison.Ordinal);
+
+    private static Version? TryGetCurrentAppVersion()
+    {
+        var asm = Assembly.GetExecutingAssembly();
+        var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        return GitHubReleaseUpdateChecker.ParseVersionLoose(info)
+               ?? (asm.GetName().Version is { } v ? GitHubReleaseUpdateChecker.NormalizeVersion(v) : null);
+    }
+
+    private static void OpenUrlInBrowser(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+        }
+        catch
+        {
+            // ignore
+        }
     }
 
     private void Persist()
@@ -126,6 +346,8 @@ public partial class App : Application
 
             _coordinator?.Dispose();
             _tray?.Dispose();
+            _updateChecker?.Dispose();
+            _updateCheckGate.Dispose();
         }
         finally
         {
@@ -137,10 +359,27 @@ public partial class App : Application
 
     private static ImageSource CreateWindowIcon()
     {
+        try
+        {
+            var uri = new Uri("pack://application:,,,/SmoothMice.ico", UriKind.Absolute);
+            if (Application.GetResourceStream(uri) is { } res)
+            {
+                using (res.Stream)
+                    return BitmapFrame.Create(
+                        res.Stream,
+                        BitmapCreateOptions.None,
+                        BitmapCacheOption.OnLoad);
+            }
+        }
+        catch (Exception)
+        {
+            // fall back to generated bitmap
+        }
+
         var hbmp = IconFactory.CreateMouseHBitmap(64);
         try
         {
-            return Imaging.CreateBitmapSourceFromHBitmap(
+            return System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
                 hbmp, IntPtr.Zero, Int32Rect.Empty,
                 BitmapSizeOptions.FromEmptyOptions());
         }

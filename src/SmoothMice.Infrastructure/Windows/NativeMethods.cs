@@ -45,6 +45,9 @@ public static class NativeMethods
     [DllImport("gdi32.dll")]
     public static extern bool DeleteObject(IntPtr hObject);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
     {

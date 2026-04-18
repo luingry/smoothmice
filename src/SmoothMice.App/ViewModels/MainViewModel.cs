@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using SmoothMice.Core.Config;
 using SmoothMice.Core.Profiles;
 using SmoothMice.Core.Scrolling;
+using SmoothMice.Core.Updates;
 
 namespace SmoothMice.App.ViewModels;
 
@@ -13,24 +14,36 @@ public sealed class MainViewModel : ViewModelBase
 {
     private readonly ProfileManager _manager;
     private readonly Action _persist;
+    private readonly Action _requestManualUpdateCheck;
 
     private bool _autoStartOnLogin;
     private bool _enabled;
     private ScrollProfile? _selected;
+    private UpdateCheckFrequency _updateCheckFrequency;
 
     public static IReadOnlyList<string> AccelPresetNames { get; } =
         ["Linear", "Smooth", "Exponential"];
 
-    public MainViewModel(ProfileManager manager, Action persist)
+    public IReadOnlyList<UpdateFrequencyOption> UpdateFrequencyOptions { get; } =
+    [
+        new(UpdateCheckFrequency.DailyOnStartup, "Diária (ao iniciar)"),
+        new(UpdateCheckFrequency.Weekly, "Semanal"),
+        new(UpdateCheckFrequency.Monthly, "Mensal"),
+        new(UpdateCheckFrequency.Never, "Nunca"),
+    ];
+
+    public MainViewModel(ProfileManager manager, Action persist, Action requestManualUpdateCheck)
     {
         _manager = manager;
         _persist = persist;
+        _requestManualUpdateCheck = requestManualUpdateCheck;
         ProfileNames = new ObservableCollection<string>();
 
         ResetAllCommand    = new RelayCommand(_ => ResetAll());
         AddProfileCommand  = new RelayCommand(_ => AddProfile());
         RemoveProfileCommand = new RelayCommand(
             _ => RemoveProfile(), _ => SelectedProfile is { IsGlobal: false });
+        CheckForUpdatesCommand = new RelayCommand(_ => _requestManualUpdateCheck());
 
         ReloadFromManager();
     }
@@ -47,6 +60,12 @@ public sealed class MainViewModel : ViewModelBase
     {
         get => _enabled;
         set => Set(ref _enabled, value);
+    }
+
+    public UpdateCheckFrequency UpdateCheckFrequency
+    {
+        get => _updateCheckFrequency;
+        set => Set(ref _updateCheckFrequency, value);
     }
 
     public ScrollProfile? SelectedProfile
@@ -145,6 +164,7 @@ public sealed class MainViewModel : ViewModelBase
     public ICommand ResetAllCommand { get; }
     public ICommand AddProfileCommand { get; }
     public ICommand RemoveProfileCommand { get; }
+    public ICommand CheckForUpdatesCommand { get; }
 
     // ── Lifecycle ────────────────────────────────────────────────────────
 
@@ -153,6 +173,7 @@ public sealed class MainViewModel : ViewModelBase
         var snap = _manager.Snapshot;
         AutoStartOnLogin = snap.AutoStartOnLogin;
         Enabled = snap.Enabled;
+        UpdateCheckFrequency = snap.UpdateCheckFrequency;
 
         ProfileNames.Clear();
         foreach (var p in snap.Profiles
@@ -169,7 +190,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SelectedProfile is null) return;
         _manager.UpsertEditedProfile(SelectedProfile);
-        _manager.UpdateShell(AutoStartOnLogin, Enabled, SelectedProfile.Id);
+        _manager.UpdateShell(AutoStartOnLogin, Enabled, SelectedProfile.Id, UpdateCheckFrequency);
     }
 
     public void SwitchProfile(string displayName)
@@ -181,7 +202,7 @@ public sealed class MainViewModel : ViewModelBase
         var match = snap.Profiles.FirstOrDefault(p => p.DisplayName == displayName);
         if (match is null) return;
 
-        _manager.UpdateShell(AutoStartOnLogin, Enabled, match.Id);
+        _manager.UpdateShell(AutoStartOnLogin, Enabled, match.Id, UpdateCheckFrequency);
         SelectedProfile = match.Clone();
         _persist();
     }

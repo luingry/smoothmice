@@ -1,4 +1,5 @@
 using SmoothMice.Core.Config;
+using SmoothMice.Core.Updates;
 
 namespace SmoothMice.Core.Profiles;
 
@@ -56,14 +57,26 @@ public sealed class ProfileManager
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void UpdateShell(bool? autoStart = null, bool? enabled = null, string? selectedProfileId = null)
+    public void UpdateShell(
+        bool? autoStart = null,
+        bool? enabled = null,
+        string? selectedProfileId = null,
+        UpdateCheckFrequency? updateCheckFrequency = null)
     {
         lock (_lock)
         {
             if (autoStart is not null) _settings.AutoStartOnLogin = autoStart.Value;
             if (enabled is not null) _settings.Enabled = enabled.Value;
             if (selectedProfileId is not null) _settings.SelectedProfileId = selectedProfileId;
+            if (updateCheckFrequency is not null) _settings.UpdateCheckFrequency = updateCheckFrequency.Value;
         }
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetLastSuccessfulUpdateCheckUtc(DateTimeOffset utc)
+    {
+        lock (_lock)
+            _settings.LastUpdateCheckUtc = utc;
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
