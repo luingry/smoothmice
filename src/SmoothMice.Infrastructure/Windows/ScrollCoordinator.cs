@@ -42,15 +42,22 @@ public sealed class ScrollCoordinator : IDisposable
     // Cached state for the current scroll session — written in OnMouseWheel under _gate,
     // read in TickCore under _gate, cleared when engines go quiet.
     //
-    //  _cachedHwnd     : the window under the cursor at hook time (WindowFromPoint).
-    //                    TickCore posts wheel messages directly to this HWND, bypassing
-    //                    the OS "Scroll inactive windows" routing so background windows
-    //                    always receive the smoothed events.
-    //  _cachedScreenPt : cursor screen-coordinates at hook time, packed into lParam.
-    //  _cachedSettings : resolved ScrollProfileSettings for this session.
+    //  _cachedHwnd          : window under cursor at hook time (WindowFromPoint).
+    //  _cachedScreenPt      : cursor screen-coords at hook time, packed into PostMessage lParam.
+    //  _cachedSettings      : resolved ScrollProfileSettings for this session.
+    //  _cachedTargetElevated: whether the target process is elevated (High integrity or above).
+    //
+    // Injection strategy (chosen once per session, in OnMouseWheel):
+    //   • Non-elevated target → PostMessage(hwnd, WM_MOUSEWHEEL, ...)
+    //       Bypasses the OS "Scroll inactive windows" routing, guaranteeing delivery to
+    //       background windows regardless of the OS setting.
+    //   • Elevated target (e.g. Task Manager, regedit) → SendInput(MOUSEEVENTF_WHEEL)
+    //       PostMessage to a higher-integrity window is silently dropped by UIPI.
+    //       SendInput injects at the hardware-input level and bypasses UIPI entirely.
     private IntPtr                 _cachedHwnd;
     private NativeMethods.POINT    _cachedScreenPt;
     private ScrollProfileSettings? _cachedSettings;
+    private bool                   _cachedTargetElevated;
 
     private double _smoothedIntervalMs = 400.0;
     private long   _lastEventMs        = -1;
@@ -94,8 +101,9 @@ public sealed class ScrollCoordinator : IDisposable
             _vertical.Reset();
             _horizontal.Reset();
             ResetEwma();
-            _cachedSettings = null;
-            _cachedHwnd     = IntPtr.Zero;
+            _cachedSettings      = null;
+            _cachedHwnd          = IntPtr.Zero;
+            _cachedTargetElevated = false;
             _running = false;
         }
     }
@@ -111,12 +119,11 @@ public sealed class ScrollCoordinator : IDisposable
         var snap = _profiles.Snapshot;
         if (!snap.Enabled) return;
 
-        // Resolve against the window UNDER THE CURSOR, not the foreground window.
-        // Scroll events are delivered to the window under the cursor regardless of
-        // keyboard focus — using GetForegroundWindow() here would pick the wrong
-        // profile when the user scrolls a background window.
+        // Resolve against the window UNDER THE CURSOR (not the foreground window).
+        // Also detect whether the target process is elevated so TickCore can choose
+        // the right injection strategy (PostMessage vs SendInput — see field comments).
         var hwndTarget = NativeMethods.WindowFromPoint(e.ScreenPoint);
-        var exeName    = ActiveAppResolver.ExecutableNameFromPath(_apps.TryGetExecutablePathForHwnd(hwndTarget));
+        var (exeName, targetIsElevated) = _apps.TryGetWindowInfo(hwndTarget);
         var resolution = _profiles.ResolveForExecutable(exeName);
         if (!resolution.InterceptForSmoothing) return;
 
@@ -145,13 +152,10 @@ public sealed class ScrollCoordinator : IDisposable
 
             e.Handled = true;
 
-            // Cache the exact target window and cursor position from hook time.
-            // TickCore uses PostMessage(cachedHwnd, ...) to inject directly into
-            // the target's message queue — this guarantees delivery to a background
-            // window regardless of focus or OS scroll-inactive-windows setting.
-            _cachedHwnd     = hwndTarget;
-            _cachedScreenPt = e.ScreenPoint;
-            _cachedSettings = settings;
+            _cachedHwnd          = hwndTarget;
+            _cachedScreenPt      = e.ScreenPoint;
+            _cachedSettings      = settings;
+            _cachedTargetElevated = targetIsElevated;
 
             if (e.IsHorizontal)
                 _horizontal.PushPhysicalDelta(e.Delta, settings, accel, now);
@@ -184,8 +188,9 @@ public sealed class ScrollCoordinator : IDisposable
     private void TickCore()
     {
         ScrollProfileSettings? settings;
-        IntPtr                 hwnd;
-        NativeMethods.POINT    screenPt;
+        IntPtr              hwnd;
+        NativeMethods.POINT screenPt;
+        bool                elevated;
         int dv, dh;
 
         lock (_gate)
@@ -195,13 +200,12 @@ public sealed class ScrollCoordinator : IDisposable
 
             hwnd     = _cachedHwnd;
             screenPt = _cachedScreenPt;
+            elevated = _cachedTargetElevated;
 
             var now = EnvironmentEx.TickCount64;
             dv = _vertical.Tick(now, settings);
             dh = _horizontal.Tick(now, settings);
 
-            // Once both engines are quiet, disarm the timer and release the 1ms
-            // scheduler period so the system returns to its default resolution.
             if (_vertical.IsQuiet() && _horizontal.IsQuiet())
             {
                 DisarmTimer();
@@ -210,13 +214,27 @@ public sealed class ScrollCoordinator : IDisposable
             }
         }
 
-        // Inject outside the lock: PostMessage is a kernel call and holding _gate
-        // during it could block OnMouseWheel on the hook thread.
-        // Read Shift state at injection time so the receiving app sees the correct
-        // modifier (Ctrl is already handled by pass-through in OnMouseWheel).
-        var shiftDown = NativeMethods.GetKeyState(NativeMethods.VkShift) < 0;
-        if (dv != 0) _injector.TryPostWheel(hwnd, dv, horizontal: false, shiftDown, screenPt);
-        if (dh != 0) _injector.TryPostWheel(hwnd, dh, horizontal: true,  shiftDown, screenPt);
+        // Inject outside the lock (kernel call — must not hold _gate).
+        //
+        // Strategy:
+        //   • Non-elevated target → PostMessage(hwnd, WM_MOUSEWHEEL)
+        //       Delivers directly to the target's message queue, bypassing the OS
+        //       "Scroll inactive windows" setting (background window fix).
+        //
+        //   • Elevated target (Task Manager, regedit, …) → SendInput(MOUSEEVENTF_WHEEL)
+        //       PostMessage to a High-integrity window is silently dropped by UIPI.
+        //       SendInput injects hardware-level input which bypasses UIPI entirely.
+        if (elevated)
+        {
+            if (dv != 0) _injector.TryInjectWheel(dv, horizontal: false);
+            if (dh != 0) _injector.TryInjectWheel(dh, horizontal: true);
+        }
+        else
+        {
+            var shiftDown = NativeMethods.GetKeyState(NativeMethods.VkShift) < 0;
+            if (dv != 0) _injector.TryPostWheel(hwnd, dv, horizontal: false, shiftDown, screenPt);
+            if (dh != 0) _injector.TryPostWheel(hwnd, dh, horizontal: true,  shiftDown, screenPt);
+        }
     }
 
     // ── Timer arm / disarm — must be called under _gate ────────────────────

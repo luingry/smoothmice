@@ -61,6 +61,15 @@ public static class NativeMethods
 
     public const uint ProcessQueryLimitedInformation = 0x1000;
 
+    /// <summary>
+    /// Full process query access.  Non-elevated (medium-integrity) processes CANNOT
+    /// obtain this access right on elevated (high-integrity) processes — <c>OpenProcess</c>
+    /// returns NULL / ERROR_ACCESS_DENIED.  We use this to detect UIPI elevation:
+    /// if the open fails, the target is elevated and <c>PostMessage</c> would be silently
+    /// dropped by UIPI; we must use <c>SendInput</c> instead.
+    /// </summary>
+    public const uint ProcessQueryInformation = 0x0400;
+
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
 

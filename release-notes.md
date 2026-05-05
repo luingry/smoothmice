@@ -4,6 +4,18 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 1.0.6 — 2026-05-05
+
+### Correção — scroll suave em janelas elevadas (Task Manager, regedit, …)
+
+- **Causa raiz:** `PostMessage(hwnd, WM_MOUSEWHEEL)` para uma janela de processo **elevado** (High integrity) é silenciosamente descartado pelo **UIPI** (User Interface Privilege Isolation) do Windows quando o processo remetente não é elevado. O SmoothMice suprimia o scroll original (hook retorna 1) mas o evento suavizado nunca chegava — resultado: sem scroll nenhum no Task Manager.
+- **`ActiveAppResolver`:** deteção de elevação adicionada ao query de processo: tenta `OpenProcess(PROCESS_QUERY_INFORMATION)` — se falhar (ERROR_ACCESS_DENIED / UIPI), o processo é elevado. Resultado cacheado por HWND junto com o exe name, sem overhead adicional.
+- **`ScrollCoordinator`:** estratégia de injeção adaptativa por sessão de scroll:
+  - **Processo não-elevado** → `PostMessage(hwnd, WM_MOUSEWHEEL)` — entrega direta à fila de mensagens, ignora configuração "Scroll inactive windows".
+  - **Processo elevado** (Task Manager, regedit, …) → `SendInput(MOUSEEVENTF_WHEEL)` — injeta input ao nível de hardware, bypassando o UIPI por completo.
+
+---
+
 ## 1.0.5 — 2026-05-05
 
 ### Correção — scroll suave em janelas em background (2ª tentativa)

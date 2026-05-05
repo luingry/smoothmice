@@ -4,79 +4,79 @@ using System.Text;
 namespace SmoothMice.Infrastructure.Windows;
 
 /// <summary>
-/// Resolves the executable path of the process that owns a given window handle.
+/// Resolves the executable path and elevation status of the process that owns a given HWND.
 ///
-/// Uses QueryFullProcessImageName (fast, &lt; 1 ms) rather than Process.MainModule.FileName
-/// (which enumerates all modules and can take hundreds of milliseconds, blocking the
-/// low-level mouse hook callback and freezing the mouse cursor).
-///
-/// HWND caching: if the same HWND is seen twice in a row, the cached path is returned
+/// Uses QueryFullProcessImageName (fast, &lt; 1 ms) rather than Process.MainModule.FileName.
+/// HWND caching: if the same HWND is seen twice in a row, the cached result is returned
 /// immediately — no Win32 calls at all.
 ///
-/// Usage in the scroll pipeline:
-///   Always resolve against the window UNDER THE CURSOR (<c>WindowFromPoint</c>),
-///   not the foreground window (<c>GetForegroundWindow</c>).  Scroll events are
-///   delivered to the window under the cursor regardless of keyboard focus, so
-///   profile resolution must follow the same window.
+/// Elevation detection:
+///   Non-elevated (medium-integrity) processes cannot open elevated (high-integrity)
+///   processes with <c>PROCESS_QUERY_INFORMATION</c> — <c>OpenProcess</c> returns NULL.
+///   We use this to detect UIPI elevation cheaply, as part of the same HWND query.
+///   This is important because <c>PostMessage</c> to an elevated window is silently
+///   dropped by UIPI; <c>SendInput</c> must be used instead.
 /// </summary>
 public sealed class ActiveAppResolver
 {
     private IntPtr  _cachedHwnd;
     private string? _cachedPath;
+    private bool    _cachedIsElevated;
 
     /// <summary>
-    /// Returns the full executable path of the process that owns <paramref name="hwnd"/>.
-    /// Returns <c>null</c> if the handle is zero or the query fails.
+    /// Returns the executable file name (e.g. "chrome.exe") and whether the owning
+    /// process runs elevated (High integrity or above).
     /// </summary>
-    public string? TryGetExecutablePathForHwnd(IntPtr hwnd)
+    public (string? exeName, bool isElevated) TryGetWindowInfo(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
-            return null;
+            return (null, false);
 
-        // Fast path: same window as last call — no Win32 round-trip needed.
         if (hwnd == _cachedHwnd)
-            return _cachedPath;
+            return (_cachedPath, _cachedIsElevated);
 
         _cachedHwnd = hwnd;
-        _cachedPath = QueryPath(hwnd);
-        return _cachedPath;
+        QueryProcess(hwnd, out _cachedPath, out _cachedIsElevated);
+        return (_cachedPath, _cachedIsElevated);
     }
 
-    private static string? QueryPath(IntPtr hwnd)
+    private static void QueryProcess(IntPtr hwnd, out string? exeName, out bool isElevated)
     {
-        _ = NativeMethods.GetWindowThreadProcessId(hwnd, out var pid);
-        if (pid == 0)
-            return null;
+        exeName    = null;
+        isElevated = false;
 
-        var hProcess = NativeMethods.OpenProcess(NativeMethods.ProcessQueryLimitedInformation, false, pid);
-        if (hProcess == IntPtr.Zero)
-            return null;
+        _ = NativeMethods.GetWindowThreadProcessId(hwnd, out var pid);
+        if (pid == 0) return;
+
+        // Elevation check: try to open with PROCESS_QUERY_INFORMATION.
+        // A medium-integrity process CANNOT open a high-integrity (elevated) process
+        // with this access right — OpenProcess returns NULL (ERROR_ACCESS_DENIED / UIPI).
+        // We close the handle immediately if successful; we only need the boolean result.
+        var hFull = NativeMethods.OpenProcess(NativeMethods.ProcessQueryInformation, false, pid);
+        if (hFull == IntPtr.Zero)
+        {
+            isElevated = true; // UIPI/access denied → elevated or protected process
+        }
+        else
+        {
+            NativeMethods.CloseHandle(hFull);
+        }
+
+        // Always use the limited handle for the path query — this works regardless
+        // of elevation, which is why it was added to the Windows API.
+        var hLimited = NativeMethods.OpenProcess(NativeMethods.ProcessQueryLimitedInformation, false, pid);
+        if (hLimited == IntPtr.Zero) return;
 
         try
         {
             var sb = new StringBuilder(1024);
             uint size = (uint)sb.Capacity;
-            if (!NativeMethods.QueryFullProcessImageName(hProcess, 0, sb, ref size))
-                return null;
-            return sb.ToString(0, (int)size);
+            if (!NativeMethods.QueryFullProcessImageName(hLimited, 0, sb, ref size)) return;
+            exeName = Path.GetFileName(sb.ToString(0, (int)size));
         }
         finally
         {
-            NativeMethods.CloseHandle(hProcess);
-        }
-    }
-
-    public static string? ExecutableNameFromPath(string? fullPath)
-    {
-        if (string.IsNullOrWhiteSpace(fullPath))
-            return null;
-        try
-        {
-            return Path.GetFileName(fullPath);
-        }
-        catch
-        {
-            return null;
+            NativeMethods.CloseHandle(hLimited);
         }
     }
 }
