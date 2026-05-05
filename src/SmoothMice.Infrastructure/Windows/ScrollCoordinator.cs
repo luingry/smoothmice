@@ -42,12 +42,12 @@ public sealed class ScrollCoordinator : IDisposable
     // Cached state for the current scroll session — written in OnMouseWheel under _gate,
     // read in TickCore under _gate, cleared when engines go quiet.
     //
-    //  _cachedHwnd         : window under cursor at hook time (WindowFromPoint).
-    //  _cachedScreenPt     : cursor screen-coords, packed into PostMessage lParam.
-    //  _cachedSettings     : resolved ScrollProfileSettings for this session.
-    //  _cachedUseSendInput : true → SendInput; false → PostMessage.
+    //  _cachedHwnd       : window under cursor at hook time (WindowFromPoint).
+    //  _cachedScreenPt   : cursor screen-coords, packed into PostMessage lParam.
+    //  _cachedSettings   : resolved ScrollProfileSettings for this session.
+    //  _cachedIsElevated : whether the target process requires SendInput (UIPI).
     //
-    // Injection strategy — decided once per scroll session in OnMouseWheel:
+    // Injection strategy — re-evaluated on EVERY tick in TickCore:
     //
     //   • FOCUSED window  →  SendInput(MOUSEEVENTF_WHEEL)
     //       The target owns the keyboard focus, so SendInput routes to it correctly.
@@ -63,10 +63,13 @@ public sealed class ScrollCoordinator : IDisposable
     //
     //   • ELEVATED process override  →  always SendInput
     //       PostMessage to a High-integrity process is silently dropped by UIPI.
+    //
+    // Focus is re-checked on each tick (not cached) so that opening the settings window
+    // or switching focus mid-animation never routes remaining events to the wrong target.
     private IntPtr                 _cachedHwnd;
     private NativeMethods.POINT    _cachedScreenPt;
     private ScrollProfileSettings? _cachedSettings;
-    private bool                   _cachedUseSendInput;
+    private bool                   _cachedIsElevated;
 
     private double _smoothedIntervalMs = 400.0;
     private long   _lastEventMs        = -1;
@@ -110,9 +113,9 @@ public sealed class ScrollCoordinator : IDisposable
             _vertical.Reset();
             _horizontal.Reset();
             ResetEwma();
-            _cachedSettings     = null;
-            _cachedHwnd         = IntPtr.Zero;
-            _cachedUseSendInput = false;
+            _cachedSettings   = null;
+            _cachedHwnd       = IntPtr.Zero;
+            _cachedIsElevated = false;
             _running = false;
         }
     }
@@ -164,17 +167,14 @@ public sealed class ScrollCoordinator : IDisposable
 
             e.Handled = true;
 
-            // Injection strategy: is the scroll target the FOCUSED window?
-            // "Focused" = the root ancestor of hwndTarget matches GetForegroundWindow().
-            // Elevated = always SendInput (UIPI blocks PostMessage).
-            var rootOfTarget    = NativeMethods.GetAncestor(hwndTarget, NativeMethods.GaRoot);
-            var foreground      = NativeMethods.GetForegroundWindow();
-            bool targetFocused  = (rootOfTarget != IntPtr.Zero && rootOfTarget == foreground);
-
-            _cachedHwnd         = hwndTarget;
-            _cachedScreenPt     = e.ScreenPoint;
-            _cachedSettings     = settings;
-            _cachedUseSendInput = targetFocused || isElevated;
+            // Cache the target HWND and elevation status for the animation ticks.
+            // Focus (focused vs. background) is NOT cached here — it is re-evaluated on
+            // every tick in TickCore so that opening the settings window or switching focus
+            // mid-animation never routes the remaining events to the wrong window.
+            _cachedHwnd       = hwndTarget;
+            _cachedScreenPt   = e.ScreenPoint;
+            _cachedSettings   = settings;
+            _cachedIsElevated = isElevated;
 
             if (e.IsHorizontal)
                 _horizontal.PushPhysicalDelta(e.Delta, settings, accel, now);
@@ -209,7 +209,7 @@ public sealed class ScrollCoordinator : IDisposable
         ScrollProfileSettings? settings;
         IntPtr              hwnd;
         NativeMethods.POINT screenPt;
-        bool                useSendInput;
+        bool                isElevated;
         int dv, dh;
 
         lock (_gate)
@@ -217,9 +217,9 @@ public sealed class ScrollCoordinator : IDisposable
             settings = _cachedSettings;
             if (settings == null) return;
 
-            hwnd         = _cachedHwnd;
-            screenPt     = _cachedScreenPt;
-            useSendInput = _cachedUseSendInput;
+            hwnd       = _cachedHwnd;
+            screenPt   = _cachedScreenPt;
+            isElevated = _cachedIsElevated;
 
             var now = EnvironmentEx.TickCount64;
             dv = _vertical.Tick(now, settings);
@@ -233,8 +233,15 @@ public sealed class ScrollCoordinator : IDisposable
             }
         }
 
+        // Re-evaluate focus on every tick (not cached from scroll start).
+        // This prevents injecting into a stale window if the user opens the settings
+        // window or alt-tabs during an ongoing animation.
+        var rootOfTarget = NativeMethods.GetAncestor(hwnd, NativeMethods.GaRoot);
+        var foreground   = NativeMethods.GetForegroundWindow();
+        bool targetFocused = rootOfTarget != IntPtr.Zero && rootOfTarget == foreground;
+        bool useSendInput  = targetFocused || isElevated;
+
         // Inject outside the lock (kernel call — must not hold _gate).
-        // Strategy is encoded in _cachedUseSendInput (see field comment above).
         if (useSendInput)
         {
             if (dv != 0) _injector.TryInjectWheel(dv, horizontal: false);

@@ -23,6 +23,12 @@ public sealed class ScrollInjector
     {
         if (hwnd == IntPtr.Zero || deltaUnits == 0) return false;
 
+        // Guard against stale handles: the browser may have navigated or closed the
+        // target window between the time the scroll session started and now.
+        // PostMessage to an invalid HWND fails silently on most Windows builds, but
+        // recycled handles can reach an unintended window in another process.
+        if (!NativeMethods.IsWindow(hwnd)) return false;
+
         var msg       = horizontal ? (uint)NativeMethods.WmMousehwheel : (uint)NativeMethods.WmMousewheel;
         var modifiers = shiftDown ? NativeMethods.MkShift : 0u;
         var wParam    = (IntPtr)(((int)modifiers & 0xFFFF) | (deltaUnits << 16));

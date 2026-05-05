@@ -4,6 +4,17 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.0.7 — 2026-05-05
+
+### Correção — crash/comportamento errático no browser ao abrir o SmoothMice ou mudar parâmetros
+
+- **Causa raiz — foco stale:** `_cachedUseSendInput` era decidido uma única vez em `OnMouseWheel` e nunca reavaliado. Se o utilizador abrisse a janela de definições (ou trocasse de janela) durante uma animação em curso, os ticks restantes continuavam a enviar `SendInput` para a nova janela em foco (SmoothMice ou outra), podendo injetar eventos no browser errado ou em estado inesperado.
+- **Fix:** `TickCore` passa a chamar `GetAncestor` + `GetForegroundWindow` em cada tick. A estratégia `SendInput` vs `PostMessage` é agora dinâmica; apenas a elevação do processo (estável por sessão) permanece em cache em `_cachedIsElevated`.
+- **Causa secundária — HWND reciclado:** se o browser navegava durante a animação, o `_cachedHwnd` podia ser destruído e o seu número reutilizado para outra janela noutro processo. `PostMessage` para esse handle reciclado entregava eventos a um alvo não intencionado.
+- **Fix:** `ScrollInjector.TryPostWheel` valida o handle com `IsWindow(hwnd)` antes de cada `PostMessage`; descarta silenciosamente se o handle for inválido.
+
+---
+
 ## 2.0.6 — 2026-05-05
 
 ### Correção — Explorer sem "stall then jump" (pass-through nativo)
