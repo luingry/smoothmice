@@ -13,10 +13,9 @@ alwaysApply: true
 
 ## Pedido de **instalador**
 
-- Palavra-chave **instalador** = **sempre** o setup **self-contained completo** (~64 MB): **runtime .NET incorporado** no asset; nunca responder só com o `.exe` framework-dependent da pasta `publish`.
-- Correr `.\installer\build-installer.ps1` **sem** `-FrameworkDependent` (default do repo).
-- Indicar o caminho: `artifacts\installer\SmoothMice_Setup_{Version}.exe` (`Version` = [Directory.Build.props](Directory.Build.props)).
-- O `.exe` na pasta `publish\` chama-se `SmoothMice-{Version}.exe` (artefacto de compilação); **não** é o “instalador” completo.
+- Palavra-chave **instalador** = **sempre** o setup **self-contained completo**: `artifacts\installer\SmoothMice_Setup_{Version}.exe`.
+- Correr `.\installer\build-installer.ps1` (sem flags adicionais).
+- O `.exe` na pasta `publish\` chama-se `SmoothMice-{Version}.exe` (artefacto de compilação); **não** é o instalador.
 
 ## Pedido de **compilação** / publish / build de release
 
@@ -42,13 +41,8 @@ Sempre que preparares um **commit** para o repositório: alinhar bump + `release
 Quando alterações com bump de `<Version>` forem **integradas em `main`** (merge ou push direto que suba versão de produto):
 
 1. **Criar uma [GitHub Release](https://docs.github.com/repositories/releasing-projects-on-github/managing-releases-in-a-repository)** para o tag/versão correspondente (tag sugerida: `v{Version}` alinhada a `Directory.Build.props`).
-2. **Anexar obrigatoriamente** o instalador **self-contained completo**: `artifacts\installer\SmoothMice_Setup_{Version}.exe` (gerado com `.\installer\build-installer.ps1` **sem** `-FrameworkDependent`).
-3. No **texto da release** (descrição), incluir sempre uma secção com **instruções para gerar o instalador menor** (framework-dependent), por exemplo:
-   - Comando: `.\installer\build-installer.ps1 -FrameworkDependent`
-   - Requisito no PC alvo: [.NET 8 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/8.0) (“Desktop Runtime”, não só “Runtime”).
-   - Referência: [README.md](README.md) (secção instalador) e [installer/build-installer.ps1](installer/build-installer.ps1).
-
-Copiar para a release o resumo relevante de [release-notes.md](release-notes.md) para essa versão.
+2. **Anexar obrigatoriamente** o instalador self-contained: `artifacts\installer\SmoothMice_Setup_{Version}.exe`.
+3. Copiar para a release o resumo relevante de [release-notes.md](release-notes.md) para essa versão.
 
 ## Checklist rápido (commit ou compilação com bump)
 
@@ -60,6 +54,6 @@ Copiar para a release o resumo relevante de [release-notes.md](release-notes.md)
 
 ## Checklist após versão nova em `main`
 
-1. Build instalador completo (`build-installer.ps1`).
+1. Build instalador (`build-installer.ps1`).
 2. Criar GitHub Release + anexar `SmoothMice_Setup_{Version}.exe`.
-3. Descrição da release: notas da versão + **passos do instalador menor** (comando `-FrameworkDependent` + runtime .NET).
+3. Descrição da release: notas da versão da secção correspondente em `release-notes.md`.
