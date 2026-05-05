@@ -37,14 +37,12 @@ public sealed class ProfileManager
 
     public void UpdateShell(
         bool? autoStart = null,
-        bool? enabled = null,
         string? selectedProfileId = null,
         UpdateCheckFrequency? updateCheckFrequency = null)
     {
         lock (_lock)
         {
             if (autoStart is not null) _settings.AutoStartOnLogin = autoStart.Value;
-            if (enabled is not null) _settings.Enabled = enabled.Value;
             if (selectedProfileId is not null) _settings.SelectedProfileId = selectedProfileId;
             if (updateCheckFrequency is not null) _settings.UpdateCheckFrequency = updateCheckFrequency.Value;
         }
@@ -58,7 +56,7 @@ public sealed class ProfileManager
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public ProfileResolution ResolveForExecutable(string? exeName)
+    public ProfileResolution ResolveForExecutable(string? exeName, string? parentExeName = null)
     {
         lock (_lock)
         {
@@ -66,20 +64,28 @@ public sealed class ProfileManager
                          ?? throw new InvalidOperationException("Global profile missing.");
 
             if (string.IsNullOrWhiteSpace(exeName))
-                return new ProfileResolution(global.Settings.Clone(), global.Settings.EnableForAllAppsByDefault);
+                return new ProfileResolution(global.Settings.Clone(), global.Settings.Enabled);
 
-            var specific = _settings.Profiles.FirstOrDefault(p =>
-                !p.IsGlobal &&
-                p.ExecutableName is not null &&
-                p.ExecutableName.Equals(exeName, StringComparison.OrdinalIgnoreCase));
+            var specific = FindAppProfile(exeName);
+            if (specific is null && !string.IsNullOrWhiteSpace(parentExeName))
+                specific = FindAppProfile(parentExeName);
 
             if (specific is not null)
-                return new ProfileResolution(specific.Settings.Clone(), InterceptForSmoothing: true);
+                return new ProfileResolution(specific.Settings.Clone(), specific.Settings.Enabled);
 
             return new ProfileResolution(
                 global.Settings.Clone(),
-                InterceptForSmoothing: global.Settings.EnableForAllAppsByDefault);
+                InterceptForSmoothing: global.Settings.Enabled);
         }
+    }
+
+    private ScrollProfile? FindAppProfile(string? exeName)
+    {
+        if (string.IsNullOrWhiteSpace(exeName)) return null;
+        return _settings.Profiles.FirstOrDefault(p =>
+            !p.IsGlobal &&
+            p.ExecutableName is not null &&
+            p.ExecutableName.Equals(exeName, StringComparison.OrdinalIgnoreCase));
     }
 
     public bool TryAddAppProfile(string executableName, string displayName)

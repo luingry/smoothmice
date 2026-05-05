@@ -4,6 +4,28 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.1.1 — 2026-05-05
+
+### Correção — Enabled por app agora afeta subprocessos (steam, electron, etc.)
+
+- **Causa raiz:** apps como o Steam exibem conteúdo em processos filhos (`steamwebhelper.exe`, helpers CEF/Electron). O matching por profile só verificava o exe direto da janela, ignorando o processo pai. Resultado: o profile de `steam.exe` com `Enabled = false` não tinha efeito nas janelas renderizadas pelos helpers.
+- **Fix:** `ActiveAppResolver.QueryWindow` consulta agora o processo pai via `CreateToolhelp32Snapshot`. Se não houver profile para o exe direto, o `ProfileManager` tenta o exe pai. Isso permite que um profile de `steam.exe` (ou qualquer launcher) aplique as definições a todos os seus subprocessos.
+- O resultado é cacheado por HWND — nenhum overhead adicional durante uma sessão de scroll.
+
+---
+
+## 2.1.0 — 2026-05-05
+
+### Enabled por app + reestruturação do bloco Behaviour
+
+- **"Enabled" por perfil:** a opção passou de switch global (`AppSettings`) para campo `ScrollProfileSettings.Enabled`, configurável individualmente em cada perfil (global e por app).
+- **Bloco Behaviour:** "Enabled" é agora a primeira opção do bloco (sem título de secção). Para o perfil global actua como "suavizar apps não mapeadas"; para perfis por app controla apenas aquela app.
+- **Removido:** checkbox "Enable for all apps by default" (substituído pelo novo `Enabled` no perfil global).
+- **Tray:** o toggle Enable/Disable do tray continua funcional — inverte o `Enabled` do perfil global.
+- **Hook:** passa a ficar sempre instalado; o `Enabled` por perfil controla se o evento é interceptado, sem overhead em inativo.
+
+---
+
 ## 2.0.7 — 2026-05-05
 
 ### Correção — crash/comportamento errático no browser ao abrir o SmoothMice ou mudar parâmetros

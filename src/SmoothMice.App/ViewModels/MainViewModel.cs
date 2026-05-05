@@ -18,7 +18,6 @@ public sealed class MainViewModel : ViewModelBase
     private readonly Action _requestManualUpdateCheck;
 
     private bool _autoStartOnLogin;
-    private bool _enabled;
     private ScrollProfile? _selected;
     private UpdateCheckFrequency _updateCheckFrequency;
     private bool _updateFlowActive;
@@ -62,12 +61,6 @@ public sealed class MainViewModel : ViewModelBase
     {
         get => _autoStartOnLogin;
         set => Set(ref _autoStartOnLogin, value);
-    }
-
-    public bool Enabled
-    {
-        get => _enabled;
-        set => Set(ref _enabled, value);
     }
 
     public UpdateCheckFrequency UpdateCheckFrequency
@@ -137,6 +130,18 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    public bool ProfileEnabled
+    {
+        get => SelectedProfile?.Settings.Enabled ?? true;
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.Enabled = value;
+            Raise();
+            Save();
+        }
+    }
+
     public bool AnimationEasing
     {
         get => SelectedProfile?.Settings.AnimationEasing ?? false;
@@ -193,18 +198,6 @@ public sealed class MainViewModel : ViewModelBase
         {
             if (SelectedProfile is null) return;
             SelectedProfile.Settings.AccelerationMaxX = value;
-            Raise();
-            Save();
-        }
-    }
-
-    public bool EnableForAllAppsByDefault
-    {
-        get => SelectedProfile?.Settings.EnableForAllAppsByDefault ?? false;
-        set
-        {
-            if (SelectedProfile is null) return;
-            SelectedProfile.Settings.EnableForAllAppsByDefault = value;
             Raise();
             Save();
         }
@@ -301,7 +294,6 @@ public sealed class MainViewModel : ViewModelBase
     {
         var snap = _manager.Snapshot;
         AutoStartOnLogin = snap.AutoStartOnLogin;
-        Enabled = snap.Enabled;
         UpdateCheckFrequency = snap.UpdateCheckFrequency;
 
         ProfileNames.Clear();
@@ -319,7 +311,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         if (SelectedProfile is null) return;
         _manager.UpsertEditedProfile(SelectedProfile);
-        _manager.UpdateShell(AutoStartOnLogin, Enabled, SelectedProfile.Id, UpdateCheckFrequency);
+        _manager.UpdateShell(AutoStartOnLogin, SelectedProfile.Id, UpdateCheckFrequency);
     }
 
     public void SwitchProfile(string displayName)
@@ -331,7 +323,7 @@ public sealed class MainViewModel : ViewModelBase
         var match = snap.Profiles.FirstOrDefault(p => p.DisplayName == displayName);
         if (match is null) return;
 
-        _manager.UpdateShell(AutoStartOnLogin, Enabled, match.Id, UpdateCheckFrequency);
+        _manager.UpdateShell(AutoStartOnLogin, match.Id, UpdateCheckFrequency);
         SelectedProfile = match.Clone();
         _persist();
     }
@@ -348,6 +340,7 @@ public sealed class MainViewModel : ViewModelBase
 
     private void RaiseAllProfileProperties()
     {
+        Raise(nameof(ProfileEnabled));
         Raise(nameof(StepSizePx));
         Raise(nameof(AnimationTimeMs));
         Raise(nameof(TailToHeadRatio));
@@ -356,7 +349,6 @@ public sealed class MainViewModel : ViewModelBase
         Raise(nameof(AccelerationCurvePreset));
         Raise(nameof(AccelerationExponent));
         Raise(nameof(AccelerationMaxX));
-        Raise(nameof(EnableForAllAppsByDefault));
         Raise(nameof(HorizontalSmoothness));
         Raise(nameof(SelectedDisplayName));
         Raise(nameof(IsGlobalProfile));

@@ -32,7 +32,7 @@ public sealed class ScrollProfileSettings
     public double AccelerationMaxX { get; set; } = 3.5;
 
     // ── Scrolling behaviour ───────────────────────────────────────────────
-    public bool EnableForAllAppsByDefault { get; set; } = true;
+    public bool Enabled { get; set; } = true;
     public bool HorizontalSmoothness { get; set; } = true;
 
     public ScrollProfileSettings Clone() => (ScrollProfileSettings)MemberwiseClone();

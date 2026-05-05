@@ -120,21 +120,14 @@ public sealed class ScrollCoordinator : IDisposable
         }
     }
 
-    public void RefreshEnabledState()
-    {
-        if (!_profiles.Snapshot.Enabled) Stop();
-        else Start();
-    }
+    public void RefreshEnabledState() => Start();
 
     private void OnMouseWheel(object? sender, MouseWheelHookEventArgs e)
     {
-        var snap = _profiles.Snapshot;
-        if (!snap.Enabled) return;
-
         // Resolve against the window UNDER THE CURSOR (not the foreground window).
         var hwndTarget = NativeMethods.WindowFromPoint(e.ScreenPoint);
-        var (exeName, isElevated, isLegacyScrollControl) = _apps.TryGetWindowInfo(hwndTarget);
-        var resolution = _profiles.ResolveForExecutable(exeName);
+        var (exeName, parentExeName, isElevated, isLegacyScrollControl) = _apps.TryGetWindowInfo(hwndTarget);
+        var resolution = _profiles.ResolveForExecutable(exeName, parentExeName);
         if (!resolution.InterceptForSmoothing) return;
 
         var settings = resolution.Settings;

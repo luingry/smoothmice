@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace SmoothMice.Infrastructure.Windows;
@@ -32,33 +33,41 @@ public sealed class ActiveAppResolver
 
     private IntPtr  _cachedHwnd;
     private string? _cachedExeName;
+    private string? _cachedParentExeName;
     private bool    _cachedIsElevated;
     private bool    _cachedIsLegacyScrollControl;
 
     /// <summary>
-    /// Returns the exe filename, whether the process is elevated, and whether
-    /// the target HWND is a legacy Win32 scroll control that requires native pass-through.
+    /// Returns the exe filename, the parent process exe filename, whether the process is
+    /// elevated, and whether the target HWND is a legacy Win32 scroll control.
+    /// <para>
+    /// <c>parentExeName</c> enables profile matching for sub-processes: e.g. if the window
+    /// belongs to <c>steamwebhelper.exe</c> whose parent is <c>steam.exe</c>, a profile
+    /// created for <c>steam.exe</c> will still apply.
+    /// </para>
     /// </summary>
-    public (string? exeName, bool isElevated, bool isLegacyScrollControl) TryGetWindowInfo(IntPtr hwnd)
+    public (string? exeName, string? parentExeName, bool isElevated, bool isLegacyScrollControl) TryGetWindowInfo(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
-            return (null, false, false);
+            return (null, null, false, false);
 
         if (hwnd == _cachedHwnd)
-            return (_cachedExeName, _cachedIsElevated, _cachedIsLegacyScrollControl);
+            return (_cachedExeName, _cachedParentExeName, _cachedIsElevated, _cachedIsLegacyScrollControl);
 
         _cachedHwnd = hwnd;
-        QueryWindow(hwnd, out _cachedExeName, out _cachedIsElevated, out _cachedIsLegacyScrollControl);
-        return (_cachedExeName, _cachedIsElevated, _cachedIsLegacyScrollControl);
+        QueryWindow(hwnd, out _cachedExeName, out _cachedParentExeName, out _cachedIsElevated, out _cachedIsLegacyScrollControl);
+        return (_cachedExeName, _cachedParentExeName, _cachedIsElevated, _cachedIsLegacyScrollControl);
     }
 
     private static void QueryWindow(
         IntPtr hwnd,
         out string? exeName,
+        out string? parentExeName,
         out bool isElevated,
         out bool isLegacyScrollControl)
     {
         exeName                = null;
+        parentExeName          = null;
         isElevated             = false;
         isLegacyScrollControl  = false;
 
@@ -107,6 +116,58 @@ public sealed class ActiveAppResolver
         finally
         {
             NativeMethods.CloseHandle(hLimited);
+        }
+
+        parentExeName = GetParentExeName(pid);
+    }
+
+    /// <summary>
+    /// Returns the exe filename of the parent process for <paramref name="pid"/>,
+    /// or <c>null</c> if it cannot be determined.  Uses a process snapshot so it
+    /// is only called once per unique HWND (cached in the caller).
+    /// </summary>
+    private static string? GetParentExeName(uint pid)
+    {
+        if (pid == 0) return null;
+
+        var snapshot = NativeMethods.CreateToolhelp32Snapshot(NativeMethods.TH32CS_SNAPPROCESS, 0);
+        if (snapshot == (IntPtr)(-1)) return null;
+
+        try
+        {
+            var entry = new NativeMethods.PROCESSENTRY32
+            {
+                dwSize = (uint)Marshal.SizeOf<NativeMethods.PROCESSENTRY32>()
+            };
+
+            if (!NativeMethods.Process32First(snapshot, ref entry)) return null;
+
+            uint parentPid = 0;
+            do
+            {
+                if (entry.th32ProcessID == pid)
+                {
+                    parentPid = entry.th32ParentProcessID;
+                    break;
+                }
+            } while (NativeMethods.Process32Next(snapshot, ref entry));
+
+            if (parentPid == 0) return null;
+
+            // Reset and find parent entry
+            entry.dwSize = (uint)Marshal.SizeOf<NativeMethods.PROCESSENTRY32>();
+            if (!NativeMethods.Process32First(snapshot, ref entry)) return null;
+            do
+            {
+                if (entry.th32ProcessID == parentPid)
+                    return entry.szExeFile;
+            } while (NativeMethods.Process32Next(snapshot, ref entry));
+
+            return null;
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(snapshot);
         }
     }
 }

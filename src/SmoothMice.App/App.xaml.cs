@@ -69,18 +69,20 @@ public partial class App : Application
         {
             Current.Dispatcher.Invoke(() =>
             {
-                if (_vm is null || _profiles is null || _repo is null || _coordinator is null || _startup is null)
-                    return;
-                _vm.Enabled = !_vm.Enabled;
+                if (_profiles is null) return;
+                var snap = _profiles.Snapshot;
+                var global = snap.Profiles.FirstOrDefault(p => p.IsGlobal);
+                if (global is null) return;
+                global.Settings.Enabled = !global.Settings.Enabled;
+                _profiles.UpsertEditedProfile(global);
                 Persist();
-                _tray.SetEnabledMenuText(_vm.Enabled);
             });
         };
         _tray.ExitRequested += (_, _) => Shutdown();
 
         _updateChecker = new GitHubReleaseUpdateChecker();
         _vm = new MainViewModel(_profiles, Persist, () => { _ = CheckForUpdatesAsync(manual: true); });
-        _tray.SetEnabledMenuText(_vm.Enabled);
+        _tray.SetEnabledMenuText(_profiles.Snapshot.Profiles.FirstOrDefault(p => p.IsGlobal)?.Settings.Enabled ?? true);
 
         var postOta = StartupRegistrationService.PostOtaRelaunchMatches(e.Args);
         var startInTray = StartupRegistrationService.TrayStartupMatches(e.Args) && !postOta;
@@ -451,7 +453,8 @@ public partial class App : Application
                 _startup.SetEnabled(snap.AutoStartOnLogin, exe);
 
             _coordinator.RefreshEnabledState();
-            _tray?.SetEnabledMenuText(_vm.Enabled);
+            var globalEnabled = snap.Profiles.FirstOrDefault(p => p.IsGlobal)?.Settings.Enabled ?? true;
+            _tray?.SetEnabledMenuText(globalEnabled);
         }
         catch (Exception ex)
         {

@@ -157,4 +157,32 @@ public static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    // ── Process snapshot (parent-process lookup) ──────────────────────────
+    public const uint TH32CS_SNAPPROCESS = 0x00000002;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    public struct PROCESSENTRY32
+    {
+        public uint   dwSize;
+        public uint   cntUsage;
+        public uint   th32ProcessID;
+        public IntPtr th32DefaultHeapID;
+        public uint   th32ModuleID;
+        public uint   cntThreads;
+        public uint   th32ParentProcessID;
+        public int    pcPriClassBase;
+        public uint   dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szExeFile;
+    }
+
+    [DllImport("kernel32.dll")]
+    public static extern bool Process32First(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+    [DllImport("kernel32.dll")]
+    public static extern bool Process32Next(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
 }

@@ -20,15 +20,14 @@ public static class DefaultSettings
         AccelerationExponent   = 1.3,
         AccelerationMaxX       = 3.5,
 
-        EnableForAllAppsByDefault = true,
-        HorizontalSmoothness      = true,
+        Enabled              = true,
+        HorizontalSmoothness = true,
     };
 
     public static AppSettings CreateAppSettings() => new()
     {
         SchemaVersion     = 1,
         AutoStartOnLogin  = true,
-        Enabled           = true,
         SelectedProfileId = GlobalProfileId,
         UpdateCheckFrequency = UpdateCheckFrequency.DailyOnStartup,
         LastUpdateCheckUtc = null,

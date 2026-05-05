@@ -108,17 +108,10 @@
                 BorderThickness="1"
                 Padding="12,8"
                 Margin="0,0,0,8">
-            <StackPanel Orientation="Horizontal">
-                <CheckBox Content="Auto start on login"
-                          IsChecked="{Binding AutoStartOnLogin, Mode=TwoWay}"
-                          Checked="PersistCheck_OnChanged"
-                          Unchecked="PersistCheck_OnChanged"
-                          Margin="0,0,24,0"/>
-                <CheckBox Content="Enabled"
-                          IsChecked="{Binding Enabled, Mode=TwoWay}"
-                          Checked="PersistCheck_OnChanged"
-                          Unchecked="PersistCheck_OnChanged"/>
-            </StackPanel>
+            <CheckBox Content="Auto start on login"
+                      IsChecked="{Binding AutoStartOnLogin, Mode=TwoWay}"
+                      Checked="PersistCheck_OnChanged"
+                      Unchecked="PersistCheck_OnChanged"/>
         </Border>
 
         <Border Grid.Row="2"
@@ -141,28 +134,15 @@
                 Padding="12,8"
                 Margin="0,0,0,8">
             <StackPanel>
-                <TextBlock Text="Behaviour" Style="{StaticResource SectionHeader}"/>
+                <CheckBox Content="Enabled"
+                          IsChecked="{Binding ProfileEnabled, Mode=TwoWay}"
+                          Checked="PersistCheck_OnChanged"
+                          Unchecked="PersistCheck_OnChanged"/>
                 <CheckBox Content="Animation easing"
                           IsChecked="{Binding AnimationEasing, Mode=TwoWay}"
                           Checked="PersistCheck_OnChanged"
                           Unchecked="PersistCheck_OnChanged"
-                          Margin="0,2,0,0"/>
-                <CheckBox Content="Enable for all apps by default"
-                          IsChecked="{Binding EnableForAllAppsByDefault, Mode=TwoWay}"
-                          Checked="PersistCheck_OnChanged"
-                          Unchecked="PersistCheck_OnChanged"
-                          Margin="0,4,0,0">
-                    <CheckBox.Style>
-                        <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                            <Setter Property="Visibility" Value="Visible"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsGlobalProfile}" Value="False">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </CheckBox.Style>
-                </CheckBox>
+                          Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
 
