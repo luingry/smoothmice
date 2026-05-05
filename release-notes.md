@@ -6,20 +6,20 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ## 1.0.7 — 2026-05-05
 
-### Correção — scroll suave no Task Manager (WinUI 3) e apps UWP/Store
+### Correção — scroll suave no Task Manager, Explorer e todas as janelas em foco
 
-- **Causa raiz:** o novo Task Manager do Windows 11 é uma app **WinUI 3**. Apps WinUI 3 e UWP processam scroll através de `WM_POINTER`/`WM_POINTERWHEEL` (modelo de input moderno), ignorando silenciosamente `WM_MOUSEWHEEL` entregue via `PostMessage`. Resultado: SmoothMice suprimia o scroll original mas o evento suavizado era descartado.
-- **`SendInput` vs `PostMessage` — nova regra de eleição:**
-  | Cenário | Método |
-  |---|---|
-  | App elevada (UIPI) | `SendInput` |
-  | WinUI 3 / UWP (`WinUIDesktopWin32WindowClass`, `ApplicationFrameWindow`, …) | `SendInput` |
-  | Win32 padrão / background | `PostMessage` |
-  `SendInput` gera input de hardware real que cria **ambas** as mensagens (`WM_MOUSEWHEEL` + `WM_POINTERWHEEL`), por isso funciona para WinUI 3 e apps UWP.
-- **`ActiveAppResolver`:** adicionada deteção de classe da janela via `GetClassName` sobre o ancestor raiz (`GetAncestor(hwnd, GA_ROOT)`). Classes conhecidas que requerem `SendInput` são comparadas e o resultado é cacheado por HWND junto com elevação e exe name.
+- **Dois problemas identificados:**
+  1. **Task Manager / apps modernas em foco:** `PostMessage(WM_MOUSEWHEEL)` não é suficiente — apps modernas (WinUI 3, DirectUI, shell controls) respondem melhor ao input de hardware real gerado pelo `SendInput`.
+  2. **Explorer "engasgando":** `DirectUIHWND` do Explorer não acumula sub-`WHEEL_DELTA` recebido via `PostMessage`; o utilizador tinha de rolar mais do que o esperado para a tela reagir.
+- **Nova regra de eleição `_cachedUseSendInput`:**
+  | Cenário | Método | Razão |
+  |---|---|---|
+  | Janela em **foco** | `SendInput` | Hardware input real → WM_MOUSEWHEEL + WM_POINTER corretos |
+  | Janela em **background** | `PostMessage(hwnd)` | Bypassa "Scroll inactive windows" → entrega direta ao HWND |
+  | Processo **elevado** | `SendInput` (override) | UIPI bloqueia PostMessage de processos não-elevados |
+  Deteção de foco: `GetAncestor(hwndTarget, GA_ROOT) == GetForegroundWindow()`.
 - **`NativeMethods`:** adicionadas P/Invoke `GetClassName` e `GetAncestor`.
-- **`ScrollCoordinator`:** campo `_cachedTargetElevated` substituído por `_cachedUseSendInput` (agrega elevação + WinUI 3 detection num único bool).
-- Apps Win32 em background continuam a usar `PostMessage` (não afetado pela configuração "Scroll inactive windows").
+- **`ActiveAppResolver`:** revertido para `(exeName, isElevated)` — deteção de classe WinUI 3 removida.
 
 ---
 

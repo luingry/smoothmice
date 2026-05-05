@@ -42,20 +42,27 @@ public sealed class ScrollCoordinator : IDisposable
     // Cached state for the current scroll session — written in OnMouseWheel under _gate,
     // read in TickCore under _gate, cleared when engines go quiet.
     //
-    //  _cachedHwnd             : window under cursor at hook time (WindowFromPoint).
-    //  _cachedScreenPt         : cursor screen-coords at hook time, packed into PostMessage lParam.
-    //  _cachedSettings         : resolved ScrollProfileSettings for this session.
-    //  _cachedUseSendInput     : true → use SendInput; false → use PostMessage.
+    //  _cachedHwnd         : window under cursor at hook time (WindowFromPoint).
+    //  _cachedScreenPt     : cursor screen-coords, packed into PostMessage lParam.
+    //  _cachedSettings     : resolved ScrollProfileSettings for this session.
+    //  _cachedUseSendInput : true → SendInput; false → PostMessage.
     //
-    // Injection strategy (chosen once per session, in OnMouseWheel):
-    //   • PostMessage(hwnd, WM_MOUSEWHEEL): direct delivery to the target's message queue,
-    //     bypassing the OS "Scroll inactive windows" routing.  Works for most Win32 apps
-    //     including background windows.
-    //   • SendInput(MOUSEEVENTF_WHEEL): required for:
-    //       - Elevated processes (UIPI silently drops PostMessage from lower-integrity senders)
-    //       - WinUI 3 / UWP apps (new Task Manager, Store apps) — these process scroll via
-    //         WM_POINTERWHEEL, not legacy WM_MOUSEWHEEL; SendInput generates hardware input
-    //         that produces BOTH message types, while PostMessage only generates WM_MOUSEWHEEL.
+    // Injection strategy — decided once per scroll session in OnMouseWheel:
+    //
+    //   • FOCUSED window  →  SendInput(MOUSEEVENTF_WHEEL)
+    //       The target owns the keyboard focus, so SendInput routes to it correctly.
+    //       Sends authentic hardware input: OS generates WM_MOUSEWHEEL AND WM_POINTERWHEEL
+    //       (the modern pointer-input path).  This is essential for apps like the Windows 11
+    //       Task Manager (WinUI 3), modern shell controls (DirectUIHWND), etc.
+    //
+    //   • BACKGROUND window  →  PostMessage(hwnd, WM_MOUSEWHEEL)
+    //       Delivers directly to the target HWND's message queue, bypassing the OS
+    //       "Scroll inactive windows when I hover over them" routing.  The background
+    //       window scrolls regardless of focus or OS setting.
+    //       PostMessage never enters WH_MOUSE_LL (hardware-input only), so no loop.
+    //
+    //   • ELEVATED process override  →  always SendInput
+    //       PostMessage to a High-integrity process is silently dropped by UIPI.
     private IntPtr                 _cachedHwnd;
     private NativeMethods.POINT    _cachedScreenPt;
     private ScrollProfileSettings? _cachedSettings;
@@ -122,10 +129,8 @@ public sealed class ScrollCoordinator : IDisposable
         if (!snap.Enabled) return;
 
         // Resolve against the window UNDER THE CURSOR (not the foreground window).
-        // Also detect elevation and WinUI3/UWP class so TickCore picks the right
-        // injection method (PostMessage vs SendInput — see field comments above).
         var hwndTarget = NativeMethods.WindowFromPoint(e.ScreenPoint);
-        var (exeName, _, useSendInput) = _apps.TryGetWindowInfo(hwndTarget);
+        var (exeName, isElevated) = _apps.TryGetWindowInfo(hwndTarget);
         var resolution = _profiles.ResolveForExecutable(exeName);
         if (!resolution.InterceptForSmoothing) return;
 
@@ -154,10 +159,17 @@ public sealed class ScrollCoordinator : IDisposable
 
             e.Handled = true;
 
+            // Injection strategy: is the scroll target the FOCUSED window?
+            // "Focused" = the root ancestor of hwndTarget matches GetForegroundWindow().
+            // Elevated = always SendInput (UIPI blocks PostMessage).
+            var rootOfTarget    = NativeMethods.GetAncestor(hwndTarget, NativeMethods.GaRoot);
+            var foreground      = NativeMethods.GetForegroundWindow();
+            bool targetFocused  = (rootOfTarget != IntPtr.Zero && rootOfTarget == foreground);
+
             _cachedHwnd         = hwndTarget;
             _cachedScreenPt     = e.ScreenPoint;
             _cachedSettings     = settings;
-            _cachedUseSendInput = useSendInput;
+            _cachedUseSendInput = targetFocused || isElevated;
 
             if (e.IsHorizontal)
                 _horizontal.PushPhysicalDelta(e.Delta, settings, accel, now);
@@ -217,15 +229,7 @@ public sealed class ScrollCoordinator : IDisposable
         }
 
         // Inject outside the lock (kernel call — must not hold _gate).
-        //
-        // Strategy:
-        //   • Non-elevated target → PostMessage(hwnd, WM_MOUSEWHEEL)
-        //       Delivers directly to the target's message queue, bypassing the OS
-        //       "Scroll inactive windows" setting (background window fix).
-        //
-        //   • Elevated target (Task Manager, regedit, …) → SendInput(MOUSEEVENTF_WHEEL)
-        //       PostMessage to a High-integrity window is silently dropped by UIPI.
-        //       SendInput injects hardware-level input which bypasses UIPI entirely.
+        // Strategy is encoded in _cachedUseSendInput (see field comment above).
         if (useSendInput)
         {
             if (dv != 0) _injector.TryInjectWheel(dv, horizontal: false);
