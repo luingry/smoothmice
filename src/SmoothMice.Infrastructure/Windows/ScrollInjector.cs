@@ -1,38 +1,34 @@
-using System.Runtime.InteropServices;
-
 namespace SmoothMice.Infrastructure.Windows;
 
 public sealed class ScrollInjector
 {
-    private static readonly int _inputSize = Marshal.SizeOf<NativeMethods.INPUT>();
-
     /// <summary>
-    /// Injects a wheel event via <c>SendInput</c>.
+    /// Posts a wheel event directly to <paramref name="hwnd"/> via <c>PostMessage</c>.
     ///
-    /// Using <c>SendInput</c> (instead of the previous <c>PostMessage</c>) means:
-    ///  • The event travels through the normal OS input path and is delivered to
-    ///    whichever window is under the cursor, including system overlays such as
-    ///    the Windows 11 Snap Layout panel.
-    ///  • Key modifiers (Ctrl, Shift) are read from the actual keyboard state by the
-    ///    receiving application — Ctrl+scroll zoom, Ctrl+scroll volume, etc. all work
-    ///    correctly without having to embed modifier flags in the message.
-    ///  • Our hook skips events flagged as <c>LLMHF_INJECTED</c>, preventing any
-    ///    re-processing loop.
+    /// Using <c>PostMessage</c> with the hook-time HWND (from <c>WindowFromPoint</c> in
+    /// <c>OnMouseWheel</c>) guarantees delivery to the exact target window regardless of:
+    ///  • OS "Scroll inactive windows" setting — <c>SendInput</c> obeys that setting and
+    ///    routes to the focused window when it is OFF; <c>PostMessage</c> bypasses it.
+    ///  • Current keyboard focus — the message goes to the hwnd's message queue directly.
+    ///
+    /// <c>PostMessage</c> does NOT go through the <c>WH_MOUSE_LL</c> hook (which only
+    /// intercepts raw hardware input), so there is no re-processing loop — no need for
+    /// the LLMHF_INJECTED filter when using this path.
+    ///
+    /// <paramref name="screenPt"/>: the screen-coordinate position captured at hook time;
+    /// packed into lParam exactly as Windows does for real WM_MOUSEWHEEL events.
     /// </summary>
-    public bool TryInjectWheel(int deltaUnits, bool horizontal)
+    public bool TryPostWheel(
+        IntPtr hwnd, int deltaUnits, bool horizontal,
+        bool shiftDown, NativeMethods.POINT screenPt)
     {
-        if (deltaUnits == 0) return false;
+        if (hwnd == IntPtr.Zero || deltaUnits == 0) return false;
 
-        var input = new NativeMethods.INPUT
-        {
-            Type = 0, // INPUT_MOUSE
-            Mi   = new NativeMethods.MOUSEINPUT
-            {
-                Flags     = horizontal ? NativeMethods.MOUSEEVENTF_HWHEEL : NativeMethods.MOUSEEVENTF_WHEEL,
-                MouseData = (uint)deltaUnits, // signed int re-interpreted as DWORD; receivers see it as signed
-            }
-        };
+        var msg      = horizontal ? (uint)NativeMethods.WmMousehwheel : (uint)NativeMethods.WmMousewheel;
+        var modifiers = shiftDown ? NativeMethods.MkShift : 0u;
+        var wParam   = (IntPtr)(((int)modifiers & 0xFFFF) | (deltaUnits << 16));
+        var lParam   = unchecked((IntPtr)(uint)((ushort)(short)screenPt.X | ((uint)(ushort)(short)screenPt.Y << 16)));
 
-        return NativeMethods.SendInput(1, new[] { input }, _inputSize) == 1;
+        return NativeMethods.PostMessage(hwnd, msg, wParam, lParam);
     }
 }

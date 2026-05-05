@@ -4,6 +4,17 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 1.0.5 — 2026-05-05
+
+### Correção — scroll suave em janelas em background (2ª tentativa)
+
+- **Causa raiz identificada:** `SendInput(MOUSEEVENTF_WHEEL)` delega o routing ao OS. Se a configuração "Scroll inactive windows when I hover over them" estiver desligada no Windows (ou em contextos específicos), o OS entrega o evento à janela **com foco** em vez da janela **sob o cursor** — tornando o smoothing inútil para janelas em background.
+- **`ScrollInjector`:** substituído `SendInput` por `PostMessage(hwnd, WM_MOUSEWHEEL, ...)` direto ao HWND alvo. `PostMessage` bypassa completamente o routing do OS e entrega o evento diretamente na fila de mensagens da janela certa, independentemente de foco ou configurações do sistema.
+- **`ScrollCoordinator`:** `_cachedHwnd` e `_cachedScreenPt` guardados em `OnMouseWheel` (hook time). `TickCore` usa esses valores no `PostMessage`, garantindo que o HWND é sempre o que o utilizador estava a hoverar no momento do scroll físico.
+- **`PostMessage` não entra no loop:** `WH_MOUSE_LL` só interceta input de hardware; `PostMessage` vai direto para a fila de mensagens, sem passar pelo hook.
+
+---
+
 ## 1.0.4 — 2026-05-05
 
 ### Correção — scroll em janelas em background

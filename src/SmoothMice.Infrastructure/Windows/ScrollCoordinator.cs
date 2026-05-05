@@ -39,10 +39,17 @@ public sealed class ScrollCoordinator : IDisposable
     private int  _ticking;
     private bool _timerPeriodSet;
 
-    // Cached profile settings for the current scroll session.
-    // Written in OnMouseWheel (hook thread) under _gate.
-    // Read in TickCore (threadpool) under _gate.
-    // Nulled out when the animation goes quiet.
+    // Cached state for the current scroll session — written in OnMouseWheel under _gate,
+    // read in TickCore under _gate, cleared when engines go quiet.
+    //
+    //  _cachedHwnd     : the window under the cursor at hook time (WindowFromPoint).
+    //                    TickCore posts wheel messages directly to this HWND, bypassing
+    //                    the OS "Scroll inactive windows" routing so background windows
+    //                    always receive the smoothed events.
+    //  _cachedScreenPt : cursor screen-coordinates at hook time, packed into lParam.
+    //  _cachedSettings : resolved ScrollProfileSettings for this session.
+    private IntPtr                 _cachedHwnd;
+    private NativeMethods.POINT    _cachedScreenPt;
     private ScrollProfileSettings? _cachedSettings;
 
     private double _smoothedIntervalMs = 400.0;
@@ -88,6 +95,7 @@ public sealed class ScrollCoordinator : IDisposable
             _horizontal.Reset();
             ResetEwma();
             _cachedSettings = null;
+            _cachedHwnd     = IntPtr.Zero;
             _running = false;
         }
     }
@@ -137,8 +145,12 @@ public sealed class ScrollCoordinator : IDisposable
 
             e.Handled = true;
 
-            // Cache settings so TickCore never has to call GetForegroundWindow /
-            // ResolveForExecutable / ProfileManager.Snapshot during the tick loop.
+            // Cache the exact target window and cursor position from hook time.
+            // TickCore uses PostMessage(cachedHwnd, ...) to inject directly into
+            // the target's message queue — this guarantees delivery to a background
+            // window regardless of focus or OS scroll-inactive-windows setting.
+            _cachedHwnd     = hwndTarget;
+            _cachedScreenPt = e.ScreenPoint;
             _cachedSettings = settings;
 
             if (e.IsHorizontal)
@@ -172,12 +184,17 @@ public sealed class ScrollCoordinator : IDisposable
     private void TickCore()
     {
         ScrollProfileSettings? settings;
+        IntPtr                 hwnd;
+        NativeMethods.POINT    screenPt;
         int dv, dh;
 
         lock (_gate)
         {
             settings = _cachedSettings;
             if (settings == null) return;
+
+            hwnd     = _cachedHwnd;
+            screenPt = _cachedScreenPt;
 
             var now = EnvironmentEx.TickCount64;
             dv = _vertical.Tick(now, settings);
@@ -189,13 +206,17 @@ public sealed class ScrollCoordinator : IDisposable
             {
                 DisarmTimer();
                 _cachedSettings = null;
+                _cachedHwnd     = IntPtr.Zero;
             }
         }
 
-        // Injection happens outside the lock: SendInput is a kernel call and
-        // holding _gate during it would block OnMouseWheel on the hook thread.
-        if (dv != 0) _injector.TryInjectWheel(dv, horizontal: false);
-        if (dh != 0) _injector.TryInjectWheel(dh, horizontal: true);
+        // Inject outside the lock: PostMessage is a kernel call and holding _gate
+        // during it could block OnMouseWheel on the hook thread.
+        // Read Shift state at injection time so the receiving app sees the correct
+        // modifier (Ctrl is already handled by pass-through in OnMouseWheel).
+        var shiftDown = NativeMethods.GetKeyState(NativeMethods.VkShift) < 0;
+        if (dv != 0) _injector.TryPostWheel(hwnd, dv, horizontal: false, shiftDown, screenPt);
+        if (dh != 0) _injector.TryPostWheel(hwnd, dh, horizontal: true,  shiftDown, screenPt);
     }
 
     // ── Timer arm / disarm — must be called under _gate ────────────────────
