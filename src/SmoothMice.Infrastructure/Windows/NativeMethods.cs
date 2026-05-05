@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace SmoothMice.Infrastructure.Windows;
 
@@ -75,6 +76,21 @@ public static class NativeMethods
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool CloseHandle(IntPtr hObject);
+
+    /// <summary>Returns the class name of a window (e.g. "Chrome_WidgetWin_1").</summary>
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    /// <summary>
+    /// Returns an ancestor of a window.  <c>GA_ROOT = 2</c> returns the topmost
+    /// parent in the parent chain (stopping at a top-level window, not the desktop).
+    /// Useful for resolving the actual app window when <c>WindowFromPoint</c> returns
+    /// a deep child (e.g. a WinUI 3 <c>DesktopChildSiteBridge</c> hosted element).
+    /// </summary>
+    public const uint GaRoot = 2;
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern bool QueryFullProcessImageName(
