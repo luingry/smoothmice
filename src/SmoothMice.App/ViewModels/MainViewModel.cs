@@ -269,7 +269,7 @@ public sealed class MainViewModel : ViewModelBase
         if (p.TotalBytes is { } t && t > 0)
         {
             UpdateBannerIndeterminate = false;
-            UpdateBannerProgress = Math.Clamp(100.0 * p.BytesRead / t, 0, 100);
+            UpdateBannerProgress = Math.Min(Math.Max(100.0 * p.BytesRead / t, 0), 100);
         }
         else
         {

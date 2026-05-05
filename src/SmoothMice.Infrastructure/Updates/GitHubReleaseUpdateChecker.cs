@@ -1,5 +1,6 @@
+using System.Net.Http;
 using System.Reflection;
-using System.Text.Json;
+using Newtonsoft.Json.Linq;
 
 namespace SmoothMice.Infrastructure.Updates;
 
@@ -63,17 +64,16 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
         try
         {
             using var resp = await _http.GetAsync(LatestReleaseUri, ct).ConfigureAwait(false);
-            var json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
             if (!resp.IsSuccessStatusCode)
                 return new UpdateQueryResult(false, $"HTTP {(int)resp.StatusCode}: {Trim(json, 240)}", false, null, null, null, null);
 
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            if (!root.TryGetProperty("tag_name", out var tagEl))
+            var root = JObject.Parse(json);
+            var tag = root["tag_name"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(tag))
                 return new UpdateQueryResult(false, "Response missing tag_name.", false, null, null, null, null);
 
-            var tag = tagEl.GetString() ?? "";
-            var pageUrl = root.TryGetProperty("html_url", out var href) ? href.GetString() : null;
+            var pageUrl = root["html_url"]?.Value<string>();
             var latest = ParseVersionLoose(tag);
             if (latest is null)
                 return new UpdateQueryResult(false, $"Invalid tag: {tag}", false, null, null, null, null);
@@ -86,7 +86,6 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
 
             if (currentVersion is null)
             {
-                // Sem versão local comparável: não marcar como "atualização", mas devolve dados da release.
                 return new UpdateQueryResult(true, null, false, latest.ToString(3), releasePageUrl, installerName, installerUrl);
             }
 
@@ -134,34 +133,33 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
         long? total = response.Content.Headers.ContentLength is { } len && len >= 0 ? len : null;
         progress?.Report(new DownloadProgress(0, total));
 
-        await using var network = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        await using var file = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        using var network = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        using var file = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
         var buffer = new byte[65536];
         long read = 0;
         while (true)
         {
-            var n = await network.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false);
+            var n = await network.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false);
             if (n <= 0)
                 break;
-            await file.WriteAsync(buffer.AsMemory(0, n), ct).ConfigureAwait(false);
+            await file.WriteAsync(buffer, 0, n, ct).ConfigureAwait(false);
             read += n;
             progress?.Report(new DownloadProgress(read, total));
         }
     }
 
-    private static (string? Name, string? Url) TryPickWindowsSetupAsset(JsonElement root)
+    private static (string? Name, string? Url) TryPickWindowsSetupAsset(JObject root)
     {
-        if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
+        var assets = root["assets"] as JArray;
+        if (assets is null)
             return (null, null);
 
         string? fallbackName = null, fallbackUrl = null;
 
-        foreach (var a in assets.EnumerateArray())
+        foreach (var a in assets)
         {
-            if (!a.TryGetProperty("name", out var nEl) || !a.TryGetProperty("browser_download_url", out var uEl))
-                continue;
-            var name = nEl.GetString();
-            var url = uEl.GetString();
+            var name = a["name"]?.Value<string>();
+            var url = a["browser_download_url"]?.Value<string>();
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url))
                 continue;
             if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
@@ -170,7 +168,7 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
             if (name.StartsWith("SmoothMice_Setup_", StringComparison.OrdinalIgnoreCase))
                 return (name, url);
 
-            if (name.Contains("Setup", StringComparison.OrdinalIgnoreCase) && fallbackUrl is null)
+            if (name.IndexOf("Setup", StringComparison.OrdinalIgnoreCase) >= 0 && fallbackUrl is null)
             {
                 fallbackName = name;
                 fallbackUrl = url;
@@ -199,12 +197,12 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
         if (string.IsNullOrWhiteSpace(text))
             return null;
         var s = text.Trim();
-        var plus = s.IndexOf('+', StringComparison.Ordinal);
+        var plus = s.IndexOf('+');
         if (plus >= 0)
-            s = s[..plus];
-        var dash = s.IndexOf('-', StringComparison.Ordinal);
+            s = s.Substring(0, plus);
+        var dash = s.IndexOf('-');
         if (dash > 0)
-            s = s[..dash];
+            s = s.Substring(0, dash);
         s = s.Trim().TrimStart('v', 'V');
         return Version.TryParse(s, out var v) ? NormalizeVersion(v) : null;
     }
@@ -213,6 +211,6 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
     {
         if (s.Length <= max)
             return s;
-        return s[..max] + "…";
+        return s.Substring(0, max) + "…";
     }
 }

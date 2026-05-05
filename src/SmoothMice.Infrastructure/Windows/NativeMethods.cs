@@ -7,8 +7,19 @@ public static class NativeMethods
     public const int WhMouseLl = 14;
     public const int WmMousewheel = 0x020A;
     public const int WmMousehwheel = 0x020E;
-    public const int VkShift = 0x10;
-    public const uint MkShift = 0x0004;
+
+    public const int  VkShift   = 0x10;
+    public const int  VkControl = 0x11;
+    public const uint MkShift   = 0x0004;
+    public const uint MkControl = 0x0008;
+
+    // MSLLHOOKSTRUCT.flags: set by Windows when the event was synthesised via SendInput.
+    // We use this to skip re-processing our own injected wheel events in the hook.
+    public const uint LlmhfInjected = 0x00000001;
+
+    // SendInput mouse-event flags
+    public const uint MOUSEEVENTF_WHEEL  = 0x0800;
+    public const uint MOUSEEVENTF_HWHEEL = 0x1000;
 
     public delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -61,6 +72,15 @@ public static class NativeMethods
         IntPtr hProcess, uint dwFlags,
         System.Text.StringBuilder lpExeName, ref uint lpdwSize);
 
+    // Timer resolution — call timeBeginPeriod(1) while scroll loop is active so that
+    // System.Threading.Timer at 4 ms actually fires at ~4 ms instead of the Windows
+    // default 15.6 ms tick, which is the primary cause of choppy animation.
+    [DllImport("winmm.dll")]
+    public static extern uint timeBeginPeriod(uint uPeriod);
+
+    [DllImport("winmm.dll")]
+    public static extern uint timeEndPeriod(uint uPeriod);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
     {
@@ -77,4 +97,35 @@ public static class NativeMethods
         public uint time;
         public IntPtr dwExtraInfo;
     }
+
+    /// <summary>
+    /// Mouse-specific part of the SendInput INPUT union.
+    /// Sequential layout lets the CLR insert the correct platform padding before
+    /// <c>ExtraInfo</c> (IntPtr), matching the native struct on both 32- and 64-bit.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT
+    {
+        public int    X;
+        public int    Y;
+        public uint   MouseData;
+        public uint   Flags;
+        public uint   Time;
+        public IntPtr ExtraInfo;
+    }
+
+    /// <summary>
+    /// INPUT structure for SendInput (mouse variant only).
+    /// Sequential layout matches the native padding the C compiler inserts between
+    /// the DWORD type field and the pointer-aligned union on both 32- and 64-bit.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT
+    {
+        public uint       Type;   // 0 = INPUT_MOUSE
+        public MOUSEINPUT Mi;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 }

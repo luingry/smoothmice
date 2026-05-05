@@ -2,6 +2,5 @@
   <PropertyGroup>
     <RootNamespace>SmoothMice.Core</RootNamespace>
     <AssemblyName>SmoothMice.Core</AssemblyName>
-    <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 </Project>

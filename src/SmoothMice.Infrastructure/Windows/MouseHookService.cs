@@ -60,6 +60,11 @@ public sealed class MouseHookService : IDisposable
             if (msg is NativeMethods.WmMousewheel or NativeMethods.WmMousehwheel)
             {
                 var info = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+
+                // Skip events we injected ourselves via SendInput — prevents re-processing
+                // our own smoothed events and potentially double-smoothing them.
+                if ((info.flags & NativeMethods.LlmhfInjected) != 0)
+                    return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
                 var delta = unchecked((short)(unchecked((uint)info.mouseData) >> 16));
                 var horizontal = msg == NativeMethods.WmMousehwheel;
                 var shift = (NativeMethods.GetKeyState(NativeMethods.VkShift) & 0x8000) != 0;

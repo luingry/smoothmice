@@ -2,95 +2,132 @@ using SmoothMice.Core.Config;
 
 namespace SmoothMice.Core.Scrolling;
 
-/// <summary>Impulse + exponential decay; integral of output matches requested scroll distance.</summary>
+/// <summary>
+/// Velocity-lerp smooth scroll engine.
+///
+/// State: a single <c>_remaining</c> scalar (signed units still to emit) plus a
+/// <c>_speed</c> ramp factor [0, 1] that provides the ease-in envelope.
+///
+/// Each tick emits <c>remaining × lerpFactor × speed</c> units, then:
+///   • <c>speed</c>  ramps toward 1.0  → smooth ease-in over the first ~20–30 ms
+///   • remaining shrinks exponentially  → natural ease-out tail
+///
+/// Advantages over the previous step-queue model:
+///   • Multiple rapid events accumulate in <c>_remaining</c> naturally — no
+///     overlapping step curves that produce mid-animation velocity "bumps".
+///   • Ease-in and ease-out are applied to the combined motion, not per-event.
+///   • C¹ and C² continuous: no jerk at the inflection point.
+///   • Simpler state: one scalar instead of a list of structs.
+///   • Settings changes (AnimationTimeMs, TailToHeadRatio) take effect
+///     immediately on the next tick.
+/// </summary>
 public sealed class SmoothScrollEngine
 {
-    /// <summary>Velocity in wheel-delta units per millisecond (signed).</summary>
-    private double _velocity;
-
-    /// <summary>Sub-unit carry-over so fractional units are never lost.</summary>
-    private double _fracAccum;
-
-    private long _lastTickMs;
-    private bool _hasLastTick;
+    private double _remaining;   // signed units still to emit
+    private double _speed;       // [0, 1] ease-in ramp factor
+    private double _fracAccum;   // fractional carry for integer output
 
     public void Reset()
     {
-        _velocity = 0;
+        _remaining = 0;
+        _speed     = 0;
         _fracAccum = 0;
-        _hasLastTick = false;
     }
 
     /// <summary>
-    /// Feed a physical wheel delta. rawDelta is typically ±120 per notch.
-    /// Acceleration multiplier is already applied externally.
+    /// Feed a physical wheel delta.
+    /// <paramref name="nowMs"/> is accepted for API compatibility but not used
+    /// in this model (timing is implicit via tick cadence).
     /// </summary>
-    public void PushPhysicalDelta(int rawDelta, ScrollProfileSettings settings, double accel)
+    public void PushPhysicalDelta(int rawDelta, ScrollProfileSettings settings, double accel, long nowMs)
     {
-        var totalUnits = rawDelta * ScrollMath.StepScale(settings.StepSizePx) * accel;
+        if (rawDelta == 0) return;
 
-        var decayTau = ComputeDecayTau(settings);
-        var impulse = totalUnits / decayTau;
+        var units = rawDelta * ScrollMath.StepScale(settings.StepSizePx) * accel;
 
-        if (_velocity == 0 || Math.Sign(impulse) == Math.Sign(_velocity))
+        if (_remaining != 0.0 && Math.Sign(_remaining) != Math.Sign(units))
         {
-            _velocity += impulse;
+            // Direction reversal: discard old motion and start fresh.
+            _remaining = 0;
+            _fracAccum = 0;
+            _speed     = 0;
+        }
+        else if (_remaining != 0.0 && _speed < 0.3)
+        {
+            // Mid-animation but nearly stopped: nudge speed up so new input
+            // feels responsive instead of sluggish.
+            _speed = 0.3;
+        }
+
+        _remaining += units;
+    }
+
+    /// <summary>Advance animation by one tick; returns signed wheel-delta units to inject.</summary>
+    public int Tick(long nowMs, ScrollProfileSettings settings)
+    {
+        if (Math.Abs(_remaining) < 0.01) return 0;
+
+        var lerp = LerpFactor(settings.AnimationTimeMs);
+
+        double ramp;
+        if (settings.AnimationEasing)
+        {
+            var tailToHead = Math.Min(Math.Max(settings.TailToHeadRatio, 0.5), 12.0);
+            ramp = SpeedRampFactor(lerp, tailToHead);
         }
         else
         {
-            _velocity = impulse;
-            _fracAccum = 0;
+            ramp = 1.0; // no ease-in — only the natural exponential ease-out
         }
-    }
 
-    /// <summary>
-    /// Advance simulation by one tick; returns signed wheel-delta units to inject.
-    /// </summary>
-    public int Tick(long nowMs, ScrollProfileSettings settings)
-    {
-        if (!_hasLastTick)
+        // Advance speed toward 1.0 (ease-in envelope).
+        _speed += (1.0 - _speed) * ramp;
+
+        // Emit fraction of remaining, scaled by current speed.
+        var delta = _remaining * lerp * _speed;
+
+        _remaining -= delta;
+
+        // Flush the trailing tail once it's too small to matter.
+        if (Math.Abs(_remaining) < 0.1)
         {
-            _hasLastTick = true;
-            _lastTickMs = nowMs;
-            return 0;
+            delta     += _remaining;
+            _remaining = 0;
+            _speed     = 0;
         }
 
-        var dt = Math.Clamp(nowMs - _lastTickMs, 0.0, 100.0);
-        _lastTickMs = nowMs;
-
-        if (IsQuiet())
-        {
-            _velocity = 0;
-            _fracAccum = 0;
-            return 0;
-        }
-
-        var decayTau = ComputeDecayTau(settings);
-
-        var decayFactor = Math.Exp(-dt / decayTau);
-        var emitted = _velocity * decayTau * (1.0 - decayFactor);
-        _velocity *= decayFactor;
-
-        if (Math.Abs(_velocity) < 1e-6) _velocity = 0;
-
-        _fracAccum += emitted;
+        _fracAccum += delta;
         var whole = (int)_fracAccum;
         _fracAccum -= whole;
-
         return whole;
     }
 
-    public bool IsQuiet() =>
-        Math.Abs(_velocity) < 1e-4 && Math.Abs(_fracAccum) < 0.5;
+    public bool IsQuiet() => Math.Abs(_remaining) < 0.1;
 
-    private static double ComputeDecayTau(ScrollProfileSettings settings)
+    /// <summary>
+    /// Per-tick lerp factor such that 98 % of <c>_remaining</c> is consumed in
+    /// <paramref name="animTimeMs"/> milliseconds at full speed (4 ms / tick).
+    /// </summary>
+    private static double LerpFactor(int animTimeMs)
     {
-        var tau = Math.Max(10.0, settings.AnimationTimeMs);
+        var ticks = Math.Max(10, animTimeMs) / 4.0;
+        return 1.0 - Math.Pow(0.02, 1.0 / ticks);
+    }
 
-        if (!settings.AnimationEasing)
-            return tau * 0.10;
+    /// <summary>
+    /// Speed-ramp rate per tick, chosen so that the ease-in phase occupies
+    /// <c>1 / (1 + tailToHead)</c> of the total animation duration.
+    /// E.g. tailToHead = 3 → 25 % ease-in, 75 % ease-out.
+    /// </summary>
+    private static double SpeedRampFactor(double lerp, double tailToHead)
+    {
+        // Total ticks for 98 % completion at full speed.
+        var totalTicks = Math.Log(0.02) / Math.Log(1.0 - lerp);
 
-        var stretch = Math.Clamp(settings.TailToHeadRatio, 0.1, 10.0);
-        return tau * (0.30 + stretch * 0.18);
+        // Ticks allocated for the acceleration (ease-in) phase.
+        var accelTicks = Math.Max(1.0, totalTicks / (1.0 + tailToHead));
+
+        // Ramp rate so speed reaches 95 % within accelTicks ticks.
+        return 1.0 - Math.Pow(0.05, 1.0 / accelTicks);
     }
 }

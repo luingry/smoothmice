@@ -1,15 +1,38 @@
+using System.Runtime.InteropServices;
+
 namespace SmoothMice.Infrastructure.Windows;
 
 public sealed class ScrollInjector
 {
-    public bool TryPostWheel(IntPtr targetHwnd, int deltaUnits, bool horizontal, nuint keys, NativeMethods.POINT screenPt)
-    {
-        if (targetHwnd == IntPtr.Zero || deltaUnits == 0)
-            return false;
+    private static readonly int _inputSize = Marshal.SizeOf<NativeMethods.INPUT>();
 
-        var msg = horizontal ? (uint)NativeMethods.WmMousehwheel : (uint)NativeMethods.WmMousewheel;
-        var wParam = (IntPtr)(((int)keys & 0xFFFF) | (deltaUnits << 16));
-        var lp = unchecked((IntPtr)(uint)((ushort)(short)screenPt.X | ((uint)(ushort)(short)screenPt.Y << 16)));
-        return NativeMethods.PostMessage(targetHwnd, msg, wParam, lp);
+    /// <summary>
+    /// Injects a wheel event via <c>SendInput</c>.
+    ///
+    /// Using <c>SendInput</c> (instead of the previous <c>PostMessage</c>) means:
+    ///  • The event travels through the normal OS input path and is delivered to
+    ///    whichever window is under the cursor, including system overlays such as
+    ///    the Windows 11 Snap Layout panel.
+    ///  • Key modifiers (Ctrl, Shift) are read from the actual keyboard state by the
+    ///    receiving application — Ctrl+scroll zoom, Ctrl+scroll volume, etc. all work
+    ///    correctly without having to embed modifier flags in the message.
+    ///  • Our hook skips events flagged as <c>LLMHF_INJECTED</c>, preventing any
+    ///    re-processing loop.
+    /// </summary>
+    public bool TryInjectWheel(int deltaUnits, bool horizontal)
+    {
+        if (deltaUnits == 0) return false;
+
+        var input = new NativeMethods.INPUT
+        {
+            Type = 0, // INPUT_MOUSE
+            Mi   = new NativeMethods.MOUSEINPUT
+            {
+                Flags     = horizontal ? NativeMethods.MOUSEEVENTF_HWHEEL : NativeMethods.MOUSEEVENTF_WHEEL,
+                MouseData = (uint)deltaUnits, // signed int re-interpreted as DWORD; receivers see it as signed
+            }
+        };
+
+        return NativeMethods.SendInput(1, new[] { input }, _inputSize) == 1;
     }
 }

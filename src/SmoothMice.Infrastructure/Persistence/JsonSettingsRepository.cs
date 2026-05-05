@@ -1,5 +1,5 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using SmoothMice.Core.Config;
 using SmoothMice.Core.Profiles;
 
@@ -7,11 +7,11 @@ namespace SmoothMice.Infrastructure.Persistence;
 
 public sealed class JsonSettingsRepository
 {
-    private static readonly JsonSerializerOptions Options = new()
+    private static readonly JsonSerializerSettings Options = new()
     {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Formatting = Formatting.Indented,
+        ContractResolver = new CamelCasePropertyNamesContractResolver(),
+        NullValueHandling = NullValueHandling.Ignore,
     };
 
     public string FilePath { get; }
@@ -30,7 +30,7 @@ public sealed class JsonSettingsRepository
                 return DefaultSettings.CreateAppSettings();
 
             var json = File.ReadAllText(FilePath);
-            var loaded = JsonSerializer.Deserialize<AppSettings>(json, Options);
+            var loaded = JsonConvert.DeserializeObject<AppSettings>(json, Options);
             return loaded ?? DefaultSettings.CreateAppSettings();
         }
         catch
@@ -45,7 +45,7 @@ public sealed class JsonSettingsRepository
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        var json = JsonSerializer.Serialize(settings, Options);
+        var json = JsonConvert.SerializeObject(settings, Options);
         File.WriteAllText(FilePath, json);
     }
 }

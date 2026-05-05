@@ -4,6 +4,31 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 1.0.2 — 2026-05-05
+
+### Correções — Ctrl+scroll e Snap Layout
+
+- **ScrollInjector:** migrado de `PostMessage(WM_MOUSEWHEEL)` para `SendInput(MOUSEEVENTF_WHEEL/HWHEEL)`.
+  - `SendInput` usa o routing nativo do OS (DWM/compositor): a janela sob o cursor recebe o evento corretamente, incluindo overlays de sistema como o painel **Snap Layout** do Windows 11.
+  - Modificadores de teclado (Ctrl, Shift) são lidos do estado real do teclado pela app destinatária — elimina a necessidade de embutir flags no wParam.
+- **ScrollCoordinator:** adicionado *pass-through* de Ctrl — quando a tecla Ctrl está premida, o evento passa sem ser interceptado. Corrige **Ctrl+scroll** (zoom no Explorer, zoom em browsers, ajuste de volume, etc.).
+- **MouseHookService:** eventos com flag `LLMHF_INJECTED` são ignorados pelo hook — previne que os eventos injetados pelo `SendInput` sejam re-processados (loop de suavização dupla).
+
+---
+
+## 1.0.1 — 2026-05-05
+
+### Melhoria — easing de scroll mais fluído
+
+- **SmoothScrollEngine:** substituído o modelo step-queue (cubic piecewise) pelo modelo **velocity-lerp com rampa de velocidade**.
+  - `_remaining` acumula todos os eventos na mesma direção — sem steps sobrepostos com fases de ease-in independentes que criavam "barrancos" de velocidade.
+  - Ease-in via rampa `_speed` (exponencial em direção a 1.0); ease-out via decaimento exponencial natural (`remaining × lerp × speed`).
+  - C¹ e C² contínuo: sem jerk na inflexão (descontinuidade na 2ª derivada do modelo anterior).
+  - `LerpFactor` derivado de `AnimationTimeMs` → 98 % do movimento consumido no tempo configurado.
+  - `SpeedRampFactor` derivado de `TailToHeadRatio` → proporção ease-in/ease-out respeitada.
+
+---
+
 ## 1.0.0 — 2026-04-18
 
 ### Marco estável — primeira versão de produção

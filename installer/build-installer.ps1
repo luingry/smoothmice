@@ -1,48 +1,22 @@
-# Publica SmoothMice (win-x64) e compila o instalador Inno Setup 6.
-# Requer: .NET 8 SDK + Inno Setup 6 (ISCC.exe)
+# Publica SmoothMice e compila o instalador Inno Setup 6.
+# Requer: .NET SDK (qualquer versão que suporte net48) + Inno Setup 6 (ISCC.exe)
 #
-# Por defeito: self-contained + single-file (~64 MB setup) — instalador completo, sem runtime .NET no PC alvo.
-# Instalador leve (framework-dependent ~0.2 MB exe no payload; runtime .NET obrigatório no alvo):
-#   powershell -File installer\build-installer.ps1 -FrameworkDependent
-# -SelfContained mantem-se como no-op util (compat); o padrao ja e autocontido.
-
-param(
-  [switch]$FrameworkDependent,
-  [switch]$SelfContained
-)
+# Targeting .NET Framework 4.8 — pré-instalado no Windows 10/11.
+# Sem runtime bundling: instalador ~2-4 MB (vs 64 MB self-contained).
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $repoRoot
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-  Write-Error "SDK .NET nao encontrado no PATH. Instala .NET 8 SDK: https://dotnet.microsoft.com/download/dotnet/8.0"
+  Write-Error "SDK .NET nao encontrado no PATH. Instala .NET SDK: https://dotnet.microsoft.com/download"
 }
 
-$useSelfContained = -not $FrameworkDependent
-Write-Host ">> dotnet publish... (SelfContained=$useSelfContained; FrameworkDependent=$FrameworkDependent)"
+Write-Host ">> dotnet publish... (Target: net48, sem runtime bundling)"
 
-if ($useSelfContained) {
-  dotnet publish "src/SmoothMice.App/SmoothMice.App.csproj" `
-    -c Release `
-    -r win-x64 `
-    -p:SelfContained=true `
-    -p:PublishSingleFile=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:EnableCompressionInSingleFile=true `
-    -p:PublishReadyToRun=true `
-    -p:PublishDebugSymbols=false
-}
-else {
-  dotnet publish "src/SmoothMice.App/SmoothMice.App.csproj" `
-    -c Release `
-    -r win-x64 `
-    -p:SelfContained=false `
-    -p:PublishSingleFile=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:PublishReadyToRun=true `
-    -p:PublishDebugSymbols=false
-}
+dotnet publish "src/SmoothMice.App/SmoothMice.App.csproj" `
+  -c Release `
+  -p:PublishDebugSymbols=false
 
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE

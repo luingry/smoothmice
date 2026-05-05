@@ -140,7 +140,7 @@ public partial class App : Application
 
     private void PostOtaRelaunchToTray()
     {
-        var exe = Environment.ProcessPath;
+        var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
         if (string.IsNullOrWhiteSpace(exe))
         {
             MessageBox.Show(
@@ -334,7 +334,7 @@ public partial class App : Application
                               $"if exist \"{EscapeForBatchPath(installedExe)}\" start \"\" \"{EscapeForBatchPath(installedExe)}\" {StartupRegistrationService.PostOtaRelaunchArg}\r\n" +
                               "del \"%~f0\"\r\n";
 
-                    await File.WriteAllTextAsync(batPath, bat, CancellationToken.None).ConfigureAwait(false);
+                    File.WriteAllText(batPath, bat);
 
                     Dispatcher.Invoke(() =>
                     {
@@ -350,15 +350,14 @@ public partial class App : Application
 
                         try
                         {
-                            var psi = new ProcessStartInfo
-                            {
-                                FileName = "cmd.exe",
-                                UseShellExecute = false,
-                                CreateNoWindow = true,
-                                WindowStyle = ProcessWindowStyle.Hidden,
-                            };
-                            psi.ArgumentList.Add("/c");
-                            psi.ArgumentList.Add(batPath);
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = "cmd.exe",
+                            Arguments = $"/c \"{batPath}\"",
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            WindowStyle = ProcessWindowStyle.Hidden,
+                        };
                             Process.Start(psi);
                         }
                         catch (Exception ex)
@@ -414,7 +413,7 @@ public partial class App : Application
 
     /// <summary>Duplica aspas para uso dentro de linhas batch entre aspas duplas.</summary>
     private static string EscapeForBatchPath(string path) =>
-        path.Replace("\"", "\"\"", StringComparison.Ordinal);
+        path.Replace("\"", "\"\"");
 
     private static Version? TryGetCurrentAppVersion()
     {

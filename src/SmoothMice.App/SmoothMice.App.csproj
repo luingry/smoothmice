@@ -12,6 +12,9 @@
     <Resource Include="SmoothMice.ico" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\SmoothMice.Core\SmoothMice.Core.csproj" />
     <ProjectReference Include="..\SmoothMice.Infrastructure\SmoothMice.Infrastructure.csproj" />
   </ItemGroup>

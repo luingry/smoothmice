@@ -19,6 +19,7 @@ public sealed class ScrollCoordinator : IDisposable
     private System.Threading.Timer? _tickTimer;
     private bool _running;
     private int _ticking;
+    private bool _timerPeriodSet;
 
     private double _smoothedIntervalMs = 400.0;
     private long   _lastEventMs        = -1;
@@ -42,6 +43,15 @@ public sealed class ScrollCoordinator : IDisposable
             _hook.Install();
             _tickTimer ??= new System.Threading.Timer(_ => Tick(), null,
                 Timeout.Infinite, Timeout.Infinite);
+
+            // Request 1 ms timer resolution so the 4 ms tick actually fires at ~4 ms.
+            // Windows default is 15.6 ms which is the main cause of choppy animation.
+            if (!_timerPeriodSet)
+            {
+                NativeMethods.timeBeginPeriod(1);
+                _timerPeriodSet = true;
+            }
+
             _tickTimer.Change(4, 4);
             _running = true;
         }
@@ -57,6 +67,13 @@ public sealed class ScrollCoordinator : IDisposable
             _vertical.Reset();
             _horizontal.Reset();
             ResetEwma();
+
+            if (_timerPeriodSet)
+            {
+                NativeMethods.timeEndPeriod(1);
+                _timerPeriodSet = false;
+            }
+
             _running = false;
         }
     }
@@ -81,24 +98,29 @@ public sealed class ScrollCoordinator : IDisposable
         if (e.IsHorizontal && !settings.HorizontalSmoothness) return;
         if (e.Delta == 0) return;
 
-        var now   = Environment.TickCount64;
+        // When Ctrl is physically held, let the event pass through unchanged so that
+        // Ctrl+scroll (zoom in Explorer/browsers, volume adjust, etc.) works natively.
+        if (NativeMethods.GetKeyState(NativeMethods.VkControl) < 0) return;
+
+        var now = EnvironmentEx.TickCount64;
+
         double smoothed;
-        lock (_gate) { smoothed = UpdateEwma(now, settings); }
-
-        var accel = ScrollMath.AccelerationMultiplier(
-            smoothed,
-            settings.AccelerationDeltaMs,
-            settings.AccelerationExponent,
-            settings.AccelerationMaxX);
-
-        e.Handled = true;
-
         lock (_gate)
         {
+            smoothed = UpdateEwma(now, settings);
+
+            var accel = ScrollMath.AccelerationMultiplier(
+                smoothed,
+                settings.AccelerationDeltaMs,
+                settings.AccelerationExponent,
+                settings.AccelerationMaxX);
+
+            e.Handled = true;
+
             if (e.IsHorizontal)
-                _horizontal.PushPhysicalDelta(e.Delta, settings, accel);
+                _horizontal.PushPhysicalDelta(e.Delta, settings, accel, now);
             else
-                _vertical.PushPhysicalDelta(e.Delta, settings, accel);
+                _vertical.PushPhysicalDelta(e.Delta, settings, accel, now);
         }
     }
 
@@ -127,7 +149,7 @@ public sealed class ScrollCoordinator : IDisposable
         var resolution = _profiles.ResolveForExecutable(exeName);
         if (!resolution.InterceptForSmoothing) return;
 
-        var now      = Environment.TickCount64;
+        var now      = EnvironmentEx.TickCount64;
         var settings = resolution.Settings;
 
         int dv, dh;
@@ -139,16 +161,13 @@ public sealed class ScrollCoordinator : IDisposable
 
         if (dv == 0 && dh == 0) return;
 
-        if (!NativeMethods.GetCursorPos(out var pt)) return;
-        var hwnd = NativeMethods.WindowFromPoint(pt);
-        if (hwnd == IntPtr.Zero) return;
-
-        var keys = 0u;
-        if (NativeMethods.GetKeyState(NativeMethods.VkShift) < 0)
-            keys |= NativeMethods.MkShift;
-
-        if (dv != 0) _injector.TryPostWheel(hwnd, dv, horizontal: false, keys, pt);
-        if (dh != 0) _injector.TryPostWheel(hwnd, dh, horizontal: true,  keys, pt);
+        // SendInput routes through the normal OS input path, so:
+        //  • The correct window (including system overlays such as Snap Layout) receives
+        //    the event based on Z-order / hit-testing — no HWND targeting needed.
+        //  • Key modifiers (Ctrl, Shift) are read from actual keyboard state by the
+        //    receiving app — no need to embed them in wParam manually.
+        if (dv != 0) _injector.TryInjectWheel(dv, horizontal: false);
+        if (dh != 0) _injector.TryInjectWheel(dh, horizontal: true);
     }
 
     /// <summary>EWMA-smoothed inter-event interval; call under <see cref="_gate"/>.</summary>

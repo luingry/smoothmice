@@ -19,7 +19,7 @@ public static class ScrollMath
         var raw   = Math.Pow(speed, exponent);
 
         const double floor = 0.10;
-        return Math.Clamp(raw, floor, Math.Max(1.0, maxX));
+        return Math.Min(Math.Max(raw, floor), Math.Max(1.0, maxX));
     }
 
     /// <summary>Returns (exponent, maxX) for the named preset.</summary>

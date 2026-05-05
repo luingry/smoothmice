@@ -13,8 +13,8 @@
 #ifndef MyPublishedExe
 #error Definir MyPublishedExe (ex.: ISCC /DMyPublishedExe=SmoothMice-0.3.0.exe); ver build-installer.ps1
 #endif
-; Pasta relativa a este ficheiro (installer\)
-#define PublishDir "..\src\SmoothMice.App\bin\Release\net8.0-windows\win-x64\publish"
+; Pasta relativa a este ficheiro (installer\) — net48 publish sem RID
+#define PublishDir "..\src\SmoothMice.App\bin\Release\net48\publish"
 ; Ícone do Setup.exe / assistente (mesmo .ico da app WPF)
 #define AppIcon "..\src\SmoothMice.App\SmoothMice.ico"
 
@@ -48,8 +48,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startup"; Description: "Start SmoothMice when Windows starts"; GroupDescription: "Startup:"; Flags: checkedonce
 
 [Files]
-; Publish single-file = MyPublishedExe; instala como MyAppExeName (nome fixo para arranque e atualizações)
+; EXE principal (renomeado para nome fixo para arranque e atualizações OTA)
 Source: "{#PublishDir}\{#MyPublishedExe}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
+; DLLs dependentes (assemblies da app + NuGet: System.Text.Json, System.Memory, etc.)
+Source: "{#PublishDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
+; Ficheiro de configuração .NET Framework (app.exe.config)
+Source: "{#PublishDir}\*.config"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
