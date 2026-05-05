@@ -130,7 +130,7 @@ public sealed class ScrollCoordinator : IDisposable
 
         // Resolve against the window UNDER THE CURSOR (not the foreground window).
         var hwndTarget = NativeMethods.WindowFromPoint(e.ScreenPoint);
-        var (exeName, isElevated) = _apps.TryGetWindowInfo(hwndTarget);
+        var (exeName, isElevated, isLegacyScrollControl) = _apps.TryGetWindowInfo(hwndTarget);
         var resolution = _profiles.ResolveForExecutable(exeName);
         if (!resolution.InterceptForSmoothing) return;
 
@@ -142,6 +142,11 @@ public sealed class ScrollCoordinator : IDisposable
         // When Ctrl is physically held, let the event pass through unchanged so that
         // Ctrl+scroll (zoom in Explorer/browsers, volume adjust, etc.) works natively.
         if (NativeMethods.GetKeyState(NativeMethods.VkControl) < 0) return;
+
+        // Legacy Win32 scroll controls (DirectUIHWND, SysListView32, …) only respond to
+        // full WHEEL_DELTA (120-unit) inputs and produce a "stall then jump" effect with
+        // our sub-120 smooth injections.  Pass through unchanged for native scroll UX.
+        if (isLegacyScrollControl) return;
 
         var now = EnvironmentEx.TickCount64;
 

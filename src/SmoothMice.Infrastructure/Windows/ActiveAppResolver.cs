@@ -4,66 +4,103 @@ using System.Text;
 namespace SmoothMice.Infrastructure.Windows;
 
 /// <summary>
-/// Resolves the executable name and elevation status of the process that owns a given HWND.
+/// Resolves the executable name, elevation status, and scroll-control type for a given HWND.
 ///
-/// Uses <c>QueryFullProcessImageName</c> (fast, &lt;1 ms).
-/// Results are cached per-HWND so Win32 calls only happen when the target window changes.
+/// Results are cached per-HWND (fast path: same HWND = zero Win32 calls).
 ///
-/// Elevation detection:
-///   Non-elevated (medium-integrity) processes cannot open elevated (high-integrity)
-///   processes with <c>PROCESS_QUERY_INFORMATION</c> — <c>OpenProcess</c> returns NULL.
-///   We use this to detect UIPI elevation cheaply.  Elevated targets must always use
-///   <c>SendInput</c> because <c>PostMessage</c> is silently dropped by UIPI.
+/// <b>Elevation</b>: non-elevated processes cannot open elevated ones with
+/// <c>PROCESS_QUERY_INFORMATION</c> — we use this to detect UIPI targets cheaply.
+///
+/// <b>Legacy scroll controls</b> (see <c>_legacyScrollClasses</c>): Win32 controls such as
+/// <c>DirectUIHWND</c> (Explorer folder view) and <c>SysListView32</c> only respond to full
+/// WHEEL_DELTA (120-unit) inputs.  Injecting our sub-120 smooth values causes a "stall then
+/// jump" effect.  The <c>isLegacyScrollControl</c> flag tells the coordinator to pass through
+/// the original event unchanged (native scroll UX) instead of intercepting it.
 /// </summary>
 public sealed class ActiveAppResolver
 {
+    // Confirmed via runtime logs: Explorer's DirectUIHWND requires 120-unit chunks.
+    // Other classic Win32 scroll controls have the same accumulation behavior.
+    private static readonly string[] _legacyScrollClasses =
+    {
+        "DirectUIHWND",  // Explorer folder view (runtime-confirmed)
+        "SysListView32", // Classic Details view / common ListView
+        "SysTreeView32", // Explorer nav pane / TreeView
+        "ListBox",
+        "LISTBOX",
+    };
+
     private IntPtr  _cachedHwnd;
     private string? _cachedExeName;
     private bool    _cachedIsElevated;
+    private bool    _cachedIsLegacyScrollControl;
 
-    /// <summary>Returns the exe filename (e.g. "chrome.exe") and whether the process is elevated.</summary>
-    public (string? exeName, bool isElevated) TryGetWindowInfo(IntPtr hwnd)
+    /// <summary>
+    /// Returns the exe filename, whether the process is elevated, and whether
+    /// the target HWND is a legacy Win32 scroll control that requires native pass-through.
+    /// </summary>
+    public (string? exeName, bool isElevated, bool isLegacyScrollControl) TryGetWindowInfo(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
-            return (null, false);
+            return (null, false, false);
 
         if (hwnd == _cachedHwnd)
-            return (_cachedExeName, _cachedIsElevated);
+            return (_cachedExeName, _cachedIsElevated, _cachedIsLegacyScrollControl);
 
         _cachedHwnd = hwnd;
-        QueryProcess(hwnd, out _cachedExeName, out _cachedIsElevated);
-        return (_cachedExeName, _cachedIsElevated);
+        QueryWindow(hwnd, out _cachedExeName, out _cachedIsElevated, out _cachedIsLegacyScrollControl);
+        return (_cachedExeName, _cachedIsElevated, _cachedIsLegacyScrollControl);
     }
 
-    private static void QueryProcess(IntPtr hwnd, out string? exeName, out bool isElevated)
+    private static void QueryWindow(
+        IntPtr hwnd,
+        out string? exeName,
+        out bool isElevated,
+        out bool isLegacyScrollControl)
     {
-        exeName    = null;
-        isElevated = false;
+        exeName                = null;
+        isElevated             = false;
+        isLegacyScrollControl  = false;
 
+        // ── Child-class check ────────────────────────────────────────────────────────
+        // WindowFromPoint returns the deepest child HWND at the cursor — exactly the
+        // control that will receive WM_MOUSEWHEEL.  Check its class against the known
+        // legacy list to decide whether chunked injection is needed.
+        var classBuf = new StringBuilder(128);
+        if (NativeMethods.GetClassName(hwnd, classBuf, classBuf.Capacity) > 0)
+        {
+            var cls = classBuf.ToString();
+            foreach (var known in _legacyScrollClasses)
+            {
+                if (string.Equals(cls, known, StringComparison.OrdinalIgnoreCase))
+                {
+                    isLegacyScrollControl = true;
+                    break;
+                }
+            }
+        }
+
+        // ── Process / elevation check ────────────────────────────────────────────────
         _ = NativeMethods.GetWindowThreadProcessId(hwnd, out var pid);
         if (pid == 0) return;
 
-        // Elevation check: try to open with PROCESS_QUERY_INFORMATION.
-        // A medium-integrity process CANNOT open a high-integrity (elevated) process
-        // with this access right — OpenProcess returns NULL (ERROR_ACCESS_DENIED / UIPI).
         var hFull = NativeMethods.OpenProcess(NativeMethods.ProcessQueryInformation, false, pid);
         if (hFull == IntPtr.Zero)
         {
-            isElevated = true; // access denied → elevated or protected process
+            isElevated = true;
         }
         else
         {
             NativeMethods.CloseHandle(hFull);
         }
 
-        // Path query: PROCESS_QUERY_LIMITED_INFORMATION works for any process.
         var hLimited = NativeMethods.OpenProcess(NativeMethods.ProcessQueryLimitedInformation, false, pid);
         if (hLimited == IntPtr.Zero) return;
 
         try
         {
-            var sb   = new StringBuilder(1024);
-            uint sz  = (uint)sb.Capacity;
+            var sb  = new StringBuilder(1024);
+            uint sz = (uint)sb.Capacity;
             if (!NativeMethods.QueryFullProcessImageName(hLimited, 0, sb, ref sz)) return;
             exeName = Path.GetFileName(sb.ToString(0, (int)sz));
         }

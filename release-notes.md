@@ -4,6 +4,17 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 1.0.8 — 2026-05-05
+
+### Correção — Explorer sem "stall then jump" (pass-through nativo)
+
+- **Causa raiz (confirmada por runtime logs):** controlos `DirectUIHWND` e `SysListView32`/`SysTreeView32` do Explorer acumulam `WM_MOUSEWHEEL` internamente e só reagem visualmente quando o acumulado atinge ±120 (WHEEL_DELTA completo). Os nossos ticks de 1–11 units preenchiam esse acumulador lentamente → silêncio → salto de 3 linhas ao cruzar 120.
+- **Fix:** `ActiveAppResolver` deteta a classe do HWND alvo via `GetClassName`. Se for um controlo legacy (`DirectUIHWND`, `SysListView32`, `SysTreeView32`, `ListBox`), o `ScrollCoordinator` faz **pass-through** — não intercepta o evento, scroll nativo intacto.
+- Apps Win32 normais (browsers, apps de configuração, etc.) continuam a receber smooth scroll.
+- Dados de debug: antes: `dv: -1, -3, -4, -10…` por tick → acumulação; depois: `passthrough` logado e nenhum inject para `DirectUIHWND`.
+
+---
+
 ## 1.0.7 — 2026-05-05
 
 ### Correção — scroll suave no Task Manager, Explorer e todas as janelas em foco
