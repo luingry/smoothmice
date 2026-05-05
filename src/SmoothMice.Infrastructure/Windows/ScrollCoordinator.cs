@@ -103,7 +103,12 @@ public sealed class ScrollCoordinator : IDisposable
         var snap = _profiles.Snapshot;
         if (!snap.Enabled) return;
 
-        var exeName    = ActiveAppResolver.ExecutableNameFromPath(_apps.TryGetForegroundExecutablePath());
+        // Resolve against the window UNDER THE CURSOR, not the foreground window.
+        // Scroll events are delivered to the window under the cursor regardless of
+        // keyboard focus — using GetForegroundWindow() here would pick the wrong
+        // profile when the user scrolls a background window.
+        var hwndTarget = NativeMethods.WindowFromPoint(e.ScreenPoint);
+        var exeName    = ActiveAppResolver.ExecutableNameFromPath(_apps.TryGetExecutablePathForHwnd(hwndTarget));
         var resolution = _profiles.ResolveForExecutable(exeName);
         if (!resolution.InterceptForSmoothing) return;
 

@@ -4,6 +4,15 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 1.0.4 — 2026-05-05
+
+### Correção — scroll em janelas em background
+
+- **`ActiveAppResolver`:** resolução do perfil passa a usar a janela sob o cursor (`WindowFromPoint`) em vez da janela em foco (`GetForegroundWindow`). O scroll é entregue pelo Windows à janela sob o cursor independentemente do foco de teclado — usar a janela errada fazia o perfil ser resolvido para a app em foco, em vez da app que ia receber o scroll.
+- **`ScrollCoordinator.OnMouseWheel`:** usa `e.ScreenPoint` (coordenada exata do cursor no momento do evento, fornecida pelo hook) para identificar a janela destino via `WindowFromPoint`.
+
+---
+
 ## 1.0.3 — 2026-05-05
 
 ### Performance — zero overhead em idle

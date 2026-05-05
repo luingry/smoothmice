@@ -4,24 +4,36 @@ using System.Text;
 namespace SmoothMice.Infrastructure.Windows;
 
 /// <summary>
-/// Resolves the executable path of the current foreground window's process.
-/// Uses QueryFullProcessImageName (fast, &lt; 1 ms) instead of Process.MainModule.FileName
+/// Resolves the executable path of the process that owns a given window handle.
+///
+/// Uses QueryFullProcessImageName (fast, &lt; 1 ms) rather than Process.MainModule.FileName
 /// (which enumerates all modules and can take hundreds of milliseconds, blocking the
-/// low-level mouse hook callback and freezing the mouse).
-/// HWND caching avoids repeated Win32 calls when the foreground window hasn't changed.
+/// low-level mouse hook callback and freezing the mouse cursor).
+///
+/// HWND caching: if the same HWND is seen twice in a row, the cached path is returned
+/// immediately — no Win32 calls at all.
+///
+/// Usage in the scroll pipeline:
+///   Always resolve against the window UNDER THE CURSOR (<c>WindowFromPoint</c>),
+///   not the foreground window (<c>GetForegroundWindow</c>).  Scroll events are
+///   delivered to the window under the cursor regardless of keyboard focus, so
+///   profile resolution must follow the same window.
 /// </summary>
 public sealed class ActiveAppResolver
 {
-    private IntPtr _cachedHwnd;
+    private IntPtr  _cachedHwnd;
     private string? _cachedPath;
 
-    public string? TryGetForegroundExecutablePath()
+    /// <summary>
+    /// Returns the full executable path of the process that owns <paramref name="hwnd"/>.
+    /// Returns <c>null</c> if the handle is zero or the query fails.
+    /// </summary>
+    public string? TryGetExecutablePathForHwnd(IntPtr hwnd)
     {
-        var hwnd = NativeMethods.GetForegroundWindow();
         if (hwnd == IntPtr.Zero)
             return null;
 
-        // Fast path: foreground window unchanged — return cached result immediately.
+        // Fast path: same window as last call — no Win32 round-trip needed.
         if (hwnd == _cachedHwnd)
             return _cachedPath;
 
