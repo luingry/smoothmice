@@ -4,6 +4,17 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 1.0.3 — 2026-05-05
+
+### Performance — zero overhead em idle
+
+- **Timer on-demand:** o timer de 4 ms e a resolução 1 ms do scheduler do Windows são agora activados apenas quando chega um evento de scroll e desactivados imediatamente quando ambos os motores ficam quiet (fim da animação, ~100–200 ms). Em idle: **0 chamadas Win32/segundo**, resolução do scheduler restaurada ao default do sistema.
+  - Eliminado o impacto de `timeBeginPeriod(1)` permanente, que afectava o scheduler de todos os processos (incluindo browsers) e era a causa directa da quebra de FPS reportada.
+- **Cache de settings em `TickCore`:** `ScrollProfileSettings` guardado em `_cachedSettings` no `OnMouseWheel`; `TickCore` usa o cache — **elimina** `GetForegroundWindow`, `ResolveForExecutable` (lock + LINQ) e `ProfileManager.Snapshot` (lock + clone) do loop de 4 ms.
+- **Injecção fora do lock:** `SendInput` (chamada kernel) executada após libertar `_gate`, evitando bloquear o thread do hook durante a injecção.
+
+---
+
 ## 1.0.2 — 2026-05-05
 
 ### Correções — Ctrl+scroll e Snap Layout
