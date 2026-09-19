@@ -26,6 +26,9 @@ public partial class App : Application
     private JsonSettingsRepository? _repo;
     private ProfileManager? _profiles;
     private ScrollCoordinator? _coordinator;
+    private ScrollPulseLogger? _scrollPulseLogger;
+    private MouseHookService? _mouseHook;
+    private ScrollPulseMonitorWindow? _scrollMonitorWindow;
     private TrayIconService? _tray;
     private StartupRegistrationService? _startup;
     private MainViewModel? _vm;
@@ -45,10 +48,13 @@ public partial class App : Application
 
         TryNotifyOtaInstallFailureFromLastRun();
 
-        var hook = new MouseHookService();
+        if (e.Args.Any(arg => string.Equals(arg, "--scroll-log", StringComparison.OrdinalIgnoreCase)))
+            _scrollPulseLogger = ScrollPulseLogger.TryStartDefault();
+
+        _mouseHook = new MouseHookService(_scrollPulseLogger);
         var injector = new ScrollInjector();
         var apps = new ActiveAppResolver();
-        _coordinator = new ScrollCoordinator(_profiles, hook, injector, apps);
+        _coordinator = new ScrollCoordinator(_profiles, _mouseHook, injector, apps);
 
         _startup = new StartupRegistrationService();
         _tray = new TrayIconService();
@@ -473,7 +479,10 @@ public partial class App : Application
                 _repo.Save(_profiles.Snapshot);
             }
 
+            _scrollMonitorWindow?.Close();
+            _scrollMonitorWindow = null;
             _coordinator?.Dispose();
+            _scrollPulseLogger?.Dispose();
             _tray?.Dispose();
             _updateChecker?.Dispose();
             _updateCheckGate.Dispose();
@@ -485,6 +494,36 @@ public partial class App : Application
     }
 
     internal void PersistFromUi() => Persist();
+
+    internal void ShowScrollMonitor(Window owner)
+    {
+        if (_scrollMonitorWindow is { } existing)
+        {
+            if (existing.WindowState == WindowState.Minimized)
+                existing.WindowState = WindowState.Normal;
+            existing.Show();
+            existing.Activate();
+            existing.Focus();
+            return;
+        }
+
+        if (_mouseHook is null)
+            return;
+
+        var monitor = new ScrollPulseMonitorWindow(_mouseHook)
+        {
+            Owner = owner,
+            Icon = CreateWindowIcon(),
+        };
+        monitor.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_scrollMonitorWindow, monitor))
+                _scrollMonitorWindow = null;
+        };
+        _scrollMonitorWindow = monitor;
+        monitor.Show();
+        monitor.Activate();
+    }
 
     private static ImageSource CreateWindowIcon()
     {

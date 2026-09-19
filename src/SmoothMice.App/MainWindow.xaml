@@ -276,10 +276,17 @@
         </Border>
 
         <DockPanel Grid.Row="6" LastChildFill="False" Margin="0,8,0,0">
-            <Button Content="Reset All"
-                    DockPanel.Dock="Left"
-                    Style="{StaticResource SecondaryButton}"
-                    Command="{Binding ResetAllCommand}"/>
+            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                <Button Content="Reset All"
+                        Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ResetAllCommand}"/>
+                <Button Content="Monitorar scroll"
+                        Margin="6,0,0,0"
+                        Style="{StaticResource SecondaryButton}"
+                        Click="MonitorScroll_OnClick"
+                        ToolTip="Abre um monitor ao vivo dos pulsos físicos da roda"
+                        AutomationProperties.Name="Monitorar scroll"/>
+            </StackPanel>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button Content="+"
                         Width="32"

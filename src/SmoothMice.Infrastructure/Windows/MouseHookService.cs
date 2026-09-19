@@ -1,17 +1,29 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
+using SmoothMice.Core.Diagnostics;
 
 namespace SmoothMice.Infrastructure.Windows;
 
 public sealed class MouseHookService : IDisposable
 {
     private readonly object _sync = new();
+    private readonly ScrollPulseLogger? _scrollPulseLogger;
     private IntPtr _hook = IntPtr.Zero;
     private NativeMethods.LowLevelMouseProc? _proc;
 
     public bool IsInstalled => _hook != IntPtr.Zero;
 
     public event EventHandler<MouseWheelHookEventArgs>? MouseWheel;
+
+    /// <summary>
+    /// Raw physical wheel pulses, emitted before smoothing. Subscribers must return immediately:
+    /// this event runs on the low-level hook callback.
+    /// </summary>
+    public event EventHandler<ScrollPulseCapturedEventArgs>? ScrollPulseCaptured;
+
+    public MouseHookService(ScrollPulseLogger? scrollPulseLogger = null) =>
+        _scrollPulseLogger = scrollPulseLogger;
 
     public void Install()
     {
@@ -54,7 +66,7 @@ public sealed class MouseHookService : IDisposable
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && MouseWheel is not null)
+        if (nCode >= 0 && (MouseWheel is not null || _scrollPulseLogger is not null || ScrollPulseCaptured is not null))
         {
             var msg = wParam.ToInt32();
             if (msg is NativeMethods.WmMousewheel or NativeMethods.WmMousehwheel)
@@ -68,14 +80,47 @@ public sealed class MouseHookService : IDisposable
                 var delta = unchecked((short)(unchecked((uint)info.mouseData) >> 16));
                 var horizontal = msg == NativeMethods.WmMousehwheel;
                 var shift = (NativeMethods.GetKeyState(NativeMethods.VkShift) & 0x8000) != 0;
+                if (_scrollPulseLogger is not null || ScrollPulseCaptured is not null)
+                {
+                    var pulse = new ScrollPulseDiagnosticPulse(
+                        DateTimeOffset.UtcNow,
+                        Stopwatch.GetTimestamp(),
+                        horizontal,
+                        delta,
+                        shift,
+                        info.pt.X,
+                        info.pt.Y);
+                    _scrollPulseLogger?.Record(pulse);
+                    PublishCapturedPulse(pulse);
+                }
                 var args = new MouseWheelHookEventArgs(delta, horizontal, shift, info.pt);
-                MouseWheel.Invoke(this, args);
+                MouseWheel?.Invoke(this, args);
                 if (args.Handled)
                     return (IntPtr)1;
             }
         }
 
         return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
+    }
+
+    private void PublishCapturedPulse(ScrollPulseDiagnosticPulse pulse)
+    {
+        var subscribers = ScrollPulseCaptured;
+        if (subscribers is null)
+            return;
+
+        var args = new ScrollPulseCapturedEventArgs(pulse);
+        foreach (EventHandler<ScrollPulseCapturedEventArgs> subscriber in subscribers.GetInvocationList())
+        {
+            try
+            {
+                subscriber(this, args);
+            }
+            catch
+            {
+                // Diagnostics must stay transparent even if a live subscriber fails.
+            }
+        }
     }
 
     public void Dispose() => Uninstall();
@@ -98,4 +143,11 @@ public sealed class MouseWheelHookEventArgs : EventArgs
 
     /// <summary>When true, the original wheel message is swallowed.</summary>
     public bool Handled { get; set; }
+}
+
+public sealed class ScrollPulseCapturedEventArgs : EventArgs
+{
+    public ScrollPulseCapturedEventArgs(ScrollPulseDiagnosticPulse pulse) => Pulse = pulse;
+
+    public ScrollPulseDiagnosticPulse Pulse { get; }
 }

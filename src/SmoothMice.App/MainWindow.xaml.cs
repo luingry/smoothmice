@@ -322,4 +322,7 @@ public partial class MainWindow
             MessageBoxButton.OK,
             MessageBoxImage.Information);
     }
+
+    private void MonitorScroll_OnClick(object sender, RoutedEventArgs e) =>
+        ((App)Application.Current).ShowScrollMonitor(this);
 }

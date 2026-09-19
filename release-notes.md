@@ -4,6 +4,17 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.1.2 — 2026-09-19
+
+### Monitor de scroll ao vivo + diagnóstico NDJSON opcional
+
+- **Novo:** botão **Monitorar scroll** abre uma janela não modal com os pulsos físicos crus antes da suavização: horário relativo/UTC, eixo, delta/direção, intervalo e marcadores de rajada/reversão.
+- **Janela:** mantém até 500 linhas, informa descartes sob sobrecarga e permite **Limpar** para iniciar uma medição controlada.
+- **NDJSON opcional:** `--scroll-log` continua a gravar a captura persistente em paralelo; abrir o monitor não cria ficheiro nem writer.
+- Eventos marcados como injetados (`LLMHF_INJECTED`) continuam excluídos. O diagnóstico só observa a entrada e não altera a suavização; os marcadores são heurísticas, não prova de defeito de hardware.
+
+---
+
 ## 2.1.1 — 2026-05-05
 
 ### Correção — Enabled por app agora afeta subprocessos (steam, electron, etc.)

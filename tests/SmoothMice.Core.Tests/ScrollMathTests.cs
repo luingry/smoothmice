@@ -1,4 +1,5 @@
 using SmoothMice.Core.Config;
+using SmoothMice.Core.Diagnostics;
 using SmoothMice.Core.Scrolling;
 using Xunit;
 
@@ -6,6 +7,74 @@ namespace SmoothMice.Core.Tests;
 
 public class ScrollMathTests
 {
+    [Fact]
+    public void Scroll_diagnostics_marks_short_burst_and_rapid_reversal_per_axis()
+    {
+        var analyzer = new ScrollPulseDiagnosticAnalyzer(timestampFrequency: 1_000);
+        var start = DateTimeOffset.Parse("2026-09-19T00:00:00Z");
+
+        var first = analyzer.Analyze(new(start, 0, false, 120, false, 1, 2));
+        var second = analyzer.Analyze(new(start, 30, false, 120, false, 1, 2));
+        var third = analyzer.Analyze(new(start, 60, false, 120, false, 1, 2));
+        var burst = analyzer.Analyze(new(start, 90, false, 120, false, 1, 2));
+        var reversal = analyzer.Analyze(new(start, 120, false, -120, false, 1, 2));
+
+        Assert.Null(first.IntervalMilliseconds);
+        Assert.Equal(30, second.IntervalMilliseconds);
+        Assert.False(third.IsShortBurst);
+        Assert.True(burst.IsShortBurst);
+        Assert.Equal(4, burst.BurstCount120Milliseconds);
+        Assert.True(reversal.IsRapidReversal);
+    }
+
+    [Fact]
+    public void Scroll_diagnostics_keeps_vertical_and_horizontal_intervals_separate_and_formats_ndjson()
+    {
+        var analyzer = new ScrollPulseDiagnosticAnalyzer(timestampFrequency: 1_000);
+        var utc = DateTimeOffset.Parse("2026-09-19T00:00:00Z");
+        _ = analyzer.Analyze(new(utc, 0, false, 120, true, 10, 20));
+        var horizontal = analyzer.Analyze(new(utc, 10, true, -120, false, 11, 21));
+        var vertical = analyzer.Analyze(new(utc, 200, false, 120, false, 12, 22));
+
+        Assert.Null(horizontal.IntervalMilliseconds);
+        Assert.Equal(200, vertical.IntervalMilliseconds);
+
+        var line = ScrollPulseDiagnosticFormatter.FormatPulse(new(utc, 200, false, 120, false, 12, 22), vertical);
+        Assert.Contains("\"kind\":\"pulse\"", line);
+        Assert.Contains("\"axis\":\"vertical\"", line);
+        Assert.Contains("\"interval_ms\":200", line);
+        Assert.Contains("\"rapid_reversal\":false", line);
+    }
+
+    [Fact]
+    public void Live_monitor_session_bounds_rows_marks_anomalies_and_clear_starts_fresh()
+    {
+        var session = new ScrollPulseMonitorSession(timestampFrequency: 1_000, maximumRows: 3);
+        var utc = DateTimeOffset.Parse("2026-09-19T00:00:00Z");
+
+        _ = session.Record(new(utc, 0, false, 120, false, 0, 0));
+        _ = session.Record(new(utc, 30, false, 120, false, 0, 0));
+        _ = session.Record(new(utc, 60, false, 120, false, 0, 0));
+        var burst = session.Record(new(utc, 90, false, 120, false, 0, 0));
+        var reversal = session.Record(new(utc, 120, false, -120, false, 0, 0));
+
+        Assert.Equal(5, session.TotalPulses);
+        Assert.Equal(3, session.Entries.Count);
+        Assert.Equal(2, session.DiscardedRows);
+        Assert.True(burst.Analysis.IsShortBurst);
+        Assert.True(reversal.Analysis.IsRapidReversal);
+        Assert.Equal(TimeSpan.FromMilliseconds(120), reversal.Elapsed);
+
+        session.Clear();
+
+        Assert.Empty(session.Entries);
+        Assert.Equal(0, session.TotalPulses);
+        Assert.Equal(0, session.DiscardedRows);
+        var fresh = session.Record(new(utc, 500, true, -120, false, 0, 0));
+        Assert.Null(fresh.Analysis.IntervalMilliseconds);
+        Assert.Equal(TimeSpan.Zero, fresh.Elapsed);
+    }
+
     // ── StepScale ─────────────────────────────────────────────────────────
 
     [Fact]
@@ -91,7 +160,7 @@ public class ScrollMathTests
         };
 
         var engine = new SmoothScrollEngine();
-        engine.PushPhysicalDelta(120, settings, accel: 1.0);
+        engine.PushPhysicalDelta(120, settings, accel: 1.0, nowMs: 0);
 
         int total = 0;
         long t = 0;
@@ -110,12 +179,12 @@ public class ScrollMathTests
 
         var engNoEase = new SmoothScrollEngine();
         engNoEase.Tick(0, noEase);
-        engNoEase.PushPhysicalDelta(120, noEase, 1.0);
+        engNoEase.PushPhysicalDelta(120, noEase, 1.0, nowMs: 0);
         var firstNoEase = Math.Abs(engNoEase.Tick(4, noEase));
 
         var engEase = new SmoothScrollEngine();
         engEase.Tick(0, ease);
-        engEase.PushPhysicalDelta(120, ease, 1.0);
+        engEase.PushPhysicalDelta(120, ease, 1.0, nowMs: 0);
         var firstEase = Math.Abs(engEase.Tick(4, ease));
 
         Assert.True(firstNoEase > firstEase,
