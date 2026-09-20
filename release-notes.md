@@ -4,6 +4,17 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.1.6 — 2026-09-20
+
+### New — persistent live dark mode
+
+- **Dark mode:** a global **Dark mode** control now switches between the existing light palette and a sober neutral dark palette immediately, without restarting or recreating windows.
+- **Coverage:** the shared semantic theme updates the main window plus profile, running-window, scroll-log, and Free-Spin surfaces already open; newly opened windows inherit the selected palette.
+- **Persistence:** the setting is saved in `%APPDATA%\SmoothMice\settings.json` and starts in light mode when absent from older settings files.
+- **UI polish:** main section wrappers are borderless, spacing before Updates is restored, and checkbox indicators retain their full geometry.
+
+---
+
 ## 2.1.5 — 2026-09-20
 
 ### New — profile sources, controls, and English UI

@@ -9,7 +9,7 @@
         SizeToContent="WidthAndHeight"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource Brush.Surface}"
+        Background="{DynamicResource Brush.Surface}"
         FontFamily="Segoe UI Variable, Segoe UI"
         TextOptions.TextFormattingMode="Display"
         UseLayoutRounding="True"
@@ -26,14 +26,14 @@
         <Style x:Key="SectionHeader" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#000000"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
             <Setter Property="Margin" Value="0,6,0,8"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
 
         <Style x:Key="FieldLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Foreground" Value="{StaticResource Brush.Muted}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}"/>
             <Setter Property="Margin" Value="0,0,0,1"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
@@ -43,7 +43,7 @@
           Width="288"
           MinWidth="288"
           MaxWidth="288"
-          Background="{StaticResource Brush.Surface}"
+          Background="{DynamicResource Brush.Surface}"
           UseLayoutRounding="True"
           SnapsToDevicePixels="True">
         <Grid.RowDefinitions>
@@ -80,7 +80,7 @@
                     <TextBlock Text="SmoothMice"
                                FontSize="20"
                                FontWeight="SemiBold"
-                               Foreground="{StaticResource Brush.Text}"
+                               Foreground="{DynamicResource Brush.Text}"
                                VerticalAlignment="Center"
                                SnapsToDevicePixels="True"/>
                 </StackPanel>
@@ -97,15 +97,13 @@
                        HorizontalAlignment="Center"
                        Margin="0,2,0,0"
                        FontSize="10"
-                       Foreground="{StaticResource Brush.Muted}"
+                       Foreground="{DynamicResource Brush.Muted}"
                        SnapsToDevicePixels="True"/>
         </Grid>
 
         <Border Grid.Row="1"
-                Background="{StaticResource Brush.Card}"
+                Background="{DynamicResource Brush.Card}"
                 CornerRadius="10"
-                BorderBrush="{StaticResource Brush.Border}"
-                BorderThickness="1"
                 Padding="12,8"
                 Margin="0,0,0,8">
             <StackPanel>
@@ -113,6 +111,11 @@
                           IsChecked="{Binding AutoStartOnLogin, Mode=TwoWay}"
                           Checked="PersistCheck_OnChanged"
                           Unchecked="PersistCheck_OnChanged"/>
+                <CheckBox Content="Dark mode"
+                          Margin="0,4,0,0"
+                          ToolTip="Use the dark application palette"
+                          AutomationProperties.Name="Dark mode"
+                          IsChecked="{Binding DarkMode, Mode=TwoWay}"/>
                 <CheckBox Content="Do not activate in games"
                           Margin="0,4,0,0"
                           ToolTip="Lets the mouse wheel pass through natively in conservatively detected games"
@@ -122,10 +125,8 @@
         </Border>
 
         <Border Grid.Row="2"
-                Background="{StaticResource Brush.Card}"
+                Background="{DynamicResource Brush.Card}"
                 CornerRadius="10"
-                BorderBrush="{StaticResource Brush.Border}"
-                BorderThickness="1"
                 Padding="10,6"
                 Margin="0,0,0,8">
             <Grid>
@@ -158,10 +159,8 @@
         </Border>
 
         <Border Grid.Row="3"
-                Background="{StaticResource Brush.Card}"
+                Background="{DynamicResource Brush.Card}"
                 CornerRadius="10"
-                BorderBrush="{StaticResource Brush.Border}"
-                BorderThickness="1"
                 Padding="12,8"
                 Margin="0,0,0,8">
             <StackPanel>
@@ -178,15 +177,14 @@
         </Border>
 
         <Border Grid.Row="4"
-                Background="{StaticResource Brush.Card}"
+                Background="{DynamicResource Brush.Card}"
                 CornerRadius="12"
-                BorderBrush="{StaticResource Brush.Border}"
-                BorderThickness="1">
+                Margin="0,0,0,8">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="24"
                                   ShadowDepth="0"
                                   Opacity="0.06"
-                                  Color="#000000"
+                                  Color="{DynamicResource C.Shadow}"
                                   Direction="270"/>
             </Border.Effect>
             <Grid Margin="12,10"
@@ -224,7 +222,7 @@
                 </StackPanel>
 
                 <Rectangle Grid.Column="1"
-                             Fill="{StaticResource Brush.Border}"
+                             Fill="{DynamicResource Brush.Border}"
                              Width="1"
                              VerticalAlignment="Stretch"
                              Margin="0,4"/>
@@ -266,10 +264,8 @@
         </Border>
 
         <Border Grid.Row="5"
-                Background="{StaticResource Brush.Card}"
+                Background="{DynamicResource Brush.Card}"
                 CornerRadius="10"
-                BorderBrush="{StaticResource Brush.Border}"
-                BorderThickness="1"
                 Padding="12,8"
                 Margin="0,0,0,8">
             <StackPanel>
@@ -292,7 +288,7 @@
                             Visibility="{Binding UpdateBannerVisible, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{Binding UpdateBannerStatus}"
                                FontSize="11"
-                               Foreground="{StaticResource Brush.Muted}"
+                               Foreground="{DynamicResource Brush.Muted}"
                                Margin="0,0,0,4"
                                TextWrapping="Wrap"/>
                     <ProgressBar Height="8"
@@ -300,8 +296,8 @@
                                  Maximum="100"
                                  Value="{Binding UpdateBannerProgress, Mode=OneWay}"
                                  IsIndeterminate="{Binding UpdateBannerIndeterminate}"
-                                 Foreground="{StaticResource Brush.Accent}"
-                                 Background="{StaticResource Brush.Border}"/>
+                               Foreground="{DynamicResource Brush.Accent}"
+                               Background="{DynamicResource Brush.Border}"/>
                 </StackPanel>
             </StackPanel>
         </Border>

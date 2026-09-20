@@ -8,7 +8,7 @@
         MinWidth="560"
         MinHeight="400"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource Brush.Surface}"
+        Background="{DynamicResource Brush.Surface}"
         FontFamily="Segoe UI Variable, Segoe UI"
         TextOptions.TextFormattingMode="Display"
         UseLayoutRounding="True"
@@ -19,17 +19,17 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <Style x:Key="MonitorLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10"/>
-            <Setter Property="Foreground" Value="{StaticResource Brush.Muted}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
-        <Style TargetType="ListViewItem">
+        <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
             <Setter Property="Padding" Value="5,4"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="ToolTip" Value="{Binding Markers}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsAnomalous}" Value="True">
-                    <Setter Property="Background" Value="#FFF7ED"/>
-                    <Setter Property="Foreground" Value="#9A3412"/>
+                    <Setter Property="Background" Value="{DynamicResource Brush.WarningSurface}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.WarningText}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -52,8 +52,8 @@
                     ToolTip="Clears the pulses in this view to start a controlled test"
                     AutomationProperties.Name="Clear scroll logs"/>
             <StackPanel>
-                <TextBlock Text="Scroll logs" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
-                <TextBlock Text="Physical pulses before smoothing" Margin="0,2,0,0" FontSize="11" Foreground="{StaticResource Brush.Muted}"/>
+                <TextBlock Text="Scroll logs" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}"/>
+                <TextBlock Text="Physical pulses before smoothing" Margin="0,2,0,0" FontSize="11" Foreground="{DynamicResource Brush.Muted}"/>
             </StackPanel>
         </DockPanel>
 
@@ -61,7 +61,7 @@
                    Text="{Binding StatusText}"
                    Margin="0,10,0,8"
                    FontSize="11"
-                   Foreground="{StaticResource Brush.Muted}"
+                   Foreground="{DynamicResource Brush.Muted}"
                    TextWrapping="Wrap"
                    AutomationProperties.LiveSetting="Polite"/>
 
@@ -73,19 +73,19 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0">
-                <TextBlock Text="{Binding TotalText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
+                <TextBlock Text="{Binding TotalText}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}"/>
                 <TextBlock Text="captured" Style="{StaticResource MonitorLabel}"/>
             </StackPanel>
             <StackPanel Grid.Column="1">
-                <TextBlock Text="{Binding AxisText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
+                <TextBlock Text="{Binding AxisText}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}"/>
                 <TextBlock Text="by axis" Style="{StaticResource MonitorLabel}"/>
             </StackPanel>
             <StackPanel Grid.Column="2">
-                <TextBlock Text="{Binding BurstText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
+                <TextBlock Text="{Binding BurstText}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}"/>
                 <TextBlock Text="burst pulses (120 ms)" Style="{StaticResource MonitorLabel}"/>
             </StackPanel>
             <StackPanel Grid.Column="3">
-                <TextBlock Text="{Binding ReversalText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
+                <TextBlock Text="{Binding ReversalText}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}"/>
                 <TextBlock Text="within 150 ms" Style="{StaticResource MonitorLabel}"/>
             </StackPanel>
         </Grid>
@@ -93,9 +93,9 @@
         <Grid Grid.Row="3">
             <ListView x:Name="PulseList"
                       ItemsSource="{Binding Rows}"
-                      BorderBrush="{StaticResource Brush.Border}"
+                      BorderBrush="{DynamicResource Brush.Border}"
                       BorderThickness="1"
-                      Background="{StaticResource Brush.Card}"
+                      Background="{DynamicResource Brush.Card}"
                       ScrollViewer.CanContentScroll="True"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
@@ -118,7 +118,7 @@
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        FontSize="13"
-                       Foreground="{StaticResource Brush.Muted}"/>
+                       Foreground="{DynamicResource Brush.Muted}"/>
         </Grid>
     </Grid>
 </Window>

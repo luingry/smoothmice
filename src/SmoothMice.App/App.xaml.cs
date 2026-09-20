@@ -47,6 +47,7 @@ public partial class App : Application
         _repo = new JsonSettingsRepository();
         var loaded = _repo.LoadOrCreate();
         _profiles = new ProfileManager(loaded);
+        ApplyTheme(loaded.DarkMode);
 
         TryNotifyOtaInstallFailureFromLastRun();
 
@@ -90,7 +91,7 @@ public partial class App : Application
         _tray.ExitRequested += (_, _) => Shutdown();
 
         _updateChecker = new GitHubReleaseUpdateChecker();
-        _vm = new MainViewModel(_profiles, Persist, () => { _ = CheckForUpdatesAsync(manual: true); });
+        _vm = new MainViewModel(_profiles, Persist, () => { _ = CheckForUpdatesAsync(manual: true); }, ApplyTheme);
         _tray.SetEnabledMenuText(_profiles.Snapshot.Profiles.FirstOrDefault(p => p.IsGlobal)?.Settings.Enabled ?? true);
 
         var postOta = StartupRegistrationService.PostOtaRelaunchMatches(e.Args);
@@ -531,6 +532,68 @@ public partial class App : Application
         monitor.Show();
         monitor.Activate();
     }
+
+    internal void ApplyTheme(bool darkMode)
+    {
+        var palette = darkMode ? DarkPalette : LightPalette;
+        foreach (var entry in palette)
+        {
+            Resources[$"C.{entry.Key}"] = entry.Value;
+            var brushKey = $"Brush.{entry.Key}";
+            if (Resources.Contains(brushKey))
+                Resources[brushKey] = new SolidColorBrush(entry.Value);
+        }
+    }
+
+    private static readonly IReadOnlyDictionary<string, Color> LightPalette =
+        new Dictionary<string, Color>(StringComparer.Ordinal)
+        {
+            ["Surface"] = Color.FromRgb(0xF4, 0xF5, 0xF7),
+            ["Card"] = Color.FromRgb(0xFF, 0xFF, 0xFF),
+            ["Border"] = Color.FromRgb(0xE4, 0xE6, 0xEB),
+            ["Text"] = Color.FromRgb(0x1B, 0x1F, 0x26),
+            ["Muted"] = Color.FromRgb(0x6B, 0x72, 0x80),
+            ["Accent"] = Color.FromRgb(0x25, 0x63, 0xEB),
+            ["AccentHover"] = Color.FromRgb(0x1D, 0x4E, 0xD8),
+            ["AccentPressed"] = Color.FromRgb(0x1E, 0x40, 0xAF),
+            ["ControlHover"] = Color.FromRgb(0xD1, 0xD5, 0xDB),
+            ["CardHover"] = Color.FromRgb(0xF0, 0xF2, 0xF5),
+            ["CardPressed"] = Color.FromRgb(0xE8, 0xEA, 0xEF),
+            ["ToggleOff"] = Color.FromRgb(0x9C, 0xA3, 0xAF),
+            ["SelectedSurface"] = Color.FromRgb(0xEF, 0xF6, 0xFF),
+            ["InfoSurface"] = Color.FromRgb(0xEF, 0xF6, 0xFF),
+            ["InfoBorder"] = Color.FromRgb(0xBF, 0xDB, 0xFE),
+            ["InfoText"] = Color.FromRgb(0x1E, 0x3A, 0x8A),
+            ["WarningSurface"] = Color.FromRgb(0xFF, 0xF7, 0xED),
+            ["WarningText"] = Color.FromRgb(0x9A, 0x34, 0x12),
+            ["DangerText"] = Color.FromRgb(0xB9, 0x1C, 0x1C),
+            ["Shadow"] = Color.FromRgb(0x00, 0x00, 0x00),
+        };
+
+    private static readonly IReadOnlyDictionary<string, Color> DarkPalette =
+        new Dictionary<string, Color>(StringComparer.Ordinal)
+        {
+            ["Surface"] = Color.FromRgb(0x1C, 0x1F, 0x24),
+            ["Card"] = Color.FromRgb(0x25, 0x29, 0x30),
+            ["Border"] = Color.FromRgb(0x3B, 0x42, 0x4D),
+            ["Text"] = Color.FromRgb(0xF1, 0xF5, 0xF9),
+            ["Muted"] = Color.FromRgb(0xB5, 0xBE, 0xCC),
+            ["Accent"] = Color.FromRgb(0x25, 0x63, 0xEB),
+            ["AccentHover"] = Color.FromRgb(0x1D, 0x4E, 0xD8),
+            ["AccentPressed"] = Color.FromRgb(0x1E, 0x40, 0xAF),
+            ["ControlHover"] = Color.FromRgb(0x56, 0x60, 0x6E),
+            ["CardHover"] = Color.FromRgb(0x2E, 0x34, 0x3D),
+            ["CardPressed"] = Color.FromRgb(0x36, 0x3D, 0x48),
+            ["ToggleOff"] = Color.FromRgb(0x7C, 0x86, 0x96),
+            ["SelectedSurface"] = Color.FromRgb(0x1D, 0x3A, 0x5F),
+            ["InfoSurface"] = Color.FromRgb(0x1C, 0x35, 0x53),
+            ["InfoBorder"] = Color.FromRgb(0x3B, 0x82, 0xC4),
+            ["InfoText"] = Color.FromRgb(0xD6, 0xE8, 0xFF),
+            ["WarningSurface"] = Color.FromRgb(0x4A, 0x2C, 0x16),
+            ["WarningText"] = Color.FromRgb(0xFE, 0xD7, 0xAA),
+            ["DangerText"] = Color.FromRgb(0xFE, 0xB2, 0xB2),
+            ["Shadow"] = Color.FromRgb(0x00, 0x00, 0x00),
+        };
 
     internal void ShowFreeSpinInertiaSuppression(Window owner)
     {

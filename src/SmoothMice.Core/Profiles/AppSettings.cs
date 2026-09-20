@@ -28,6 +28,9 @@ public sealed class AppSettings
     /// </summary>
     public bool DoNotActivateInGames { get; set; }
 
+    /// <summary>Uses the application's neutral dark palette instead of the default light palette.</summary>
+    public bool DarkMode { get; set; }
+
     public int FreeSpinLiftTarget { get => _freeSpinLiftTarget; set => _freeSpinLiftTarget = ClampCalibrationTarget(value); }
     public int FreeSpinLandingTarget { get => _freeSpinLandingTarget; set => _freeSpinLandingTarget = ClampCalibrationTarget(value); }
     public int FreeSpinRepositionTarget { get => _freeSpinRepositionTarget; set => _freeSpinRepositionTarget = ClampCalibrationTarget(value); }
@@ -45,6 +48,7 @@ public sealed class AppSettings
         UpdateCheckFrequency = UpdateCheckFrequency,
         FreeSpinInertiaSuppressionEnabled = FreeSpinInertiaSuppressionEnabled,
         DoNotActivateInGames = DoNotActivateInGames,
+        DarkMode = DarkMode,
         FreeSpinLiftTarget = FreeSpinLiftTarget,
         FreeSpinLandingTarget = FreeSpinLandingTarget,
         FreeSpinRepositionTarget = FreeSpinRepositionTarget,

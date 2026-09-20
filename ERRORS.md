@@ -48,3 +48,17 @@
 - Root cause: `techland_game_class` was absent from the classifier’s strong signals. Separately, the recorded false preference is confirmed, and the prior ViewModel setter is confirmed not to invoke its persistence callback; the exact WPF event ordering or user-flow cause of that installed false value was not reproduced and is not asserted.
 - Solution: accept the specific Techland root class only with the existing foreground-or-fullscreen signal and all exclusions; persist directly from the ViewModel setter after updating `ProfileManager`, instead of relying on `Checked`/`Unchecked` ordering.
 - Prevention: capture real root window classes when extending conservative classifiers, and make global settings that must survive an immediate UI interaction invoke their explicit persistence seam rather than depend solely on routed UI events.
+
+## 2026-09-20 — Free-Spin window could not construct in isolated WPF tests after theme styling
+
+- Symptom: the Free-Spin STA construction test threw `XamlParseException` because `SecondaryButton` could not be found.
+- Root cause: the window-level `ActionButton` used `BasedOn="{StaticResource SecondaryButton}"`, while the isolated test creates `App` without loading application XAML resources.
+- Solution: the window owns the small themed action-button template and references only dynamic semantic brushes.
+- Prevention: window-local styles used by isolated WPF construction tests must not require an application resource to resolve statically.
+
+## 2026-09-20 — Dynamic theme brushes cannot be mutated in place
+
+- Symptom: the semantic palette test threw `InvalidOperationException` when `ApplyTheme` assigned `SolidColorBrush.Color` after the brush was placed in the WPF resource dictionary.
+- Root cause: WPF can freeze resource-backed `Freezable` brushes, making their color immutable even when a dynamic resource originally created them.
+- Solution: replace each semantic brush resource with a new brush and keep every theme-sensitive consumer on `DynamicResource`, which propagates the replacement to open windows.
+- Prevention: never rely on mutating resource-backed WPF brushes for live theming; replace resources and use dynamic lookup instead.

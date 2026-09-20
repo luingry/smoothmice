@@ -7,7 +7,7 @@
         MinWidth="430"
         MinHeight="380"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource Brush.Surface}"
+        Background="{DynamicResource Brush.Surface}"
         FontFamily="Segoe UI Variable, Segoe UI"
         TextOptions.TextFormattingMode="Display"
         UseLayoutRounding="True"
@@ -21,7 +21,7 @@
             <Setter Property="Width" Value="76" />
             <Setter Property="Height" Value="32" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="#9CA3AF" />
+            <Setter Property="Background" Value="{DynamicResource Brush.ToggleOff}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -34,14 +34,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Brush.Accent}" />
+                                <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.Accent}" />
                                 <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
                                 <Setter TargetName="StateText" Property="Text" Value="ON" />
                                 <Setter TargetName="StateText" Property="HorizontalAlignment" Value="Left" />
                                 <Setter TargetName="StateText" Property="Margin" Value="5,0,0,0" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Brush.Text}" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource Brush.Text}" />
                                 <Setter TargetName="Track" Property="BorderThickness" Value="2" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -54,8 +54,8 @@
             <Setter Property="Margin" Value="0,0,0,6" />
             <Setter Property="Padding" Value="10,9" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Background" Value="{StaticResource Brush.Card}" />
-            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -65,12 +65,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
-                                <Setter TargetName="Frame" Property="Background" Value="#EFF6FF" />
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                <Setter TargetName="Frame" Property="Background" Value="{DynamicResource Brush.SelectedSurface}" />
                                 <Setter Property="FontWeight" Value="SemiBold" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource Brush.Text}" />
+                                <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Brush.Text}" />
                                 <Setter TargetName="Frame" Property="BorderThickness" Value="2" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -83,6 +83,35 @@
             <Setter Property="Margin" Value="0,0,8,8" />
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text}" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.CardHover}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.CardPressed}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -93,65 +122,65 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Border Background="{StaticResource Brush.Card}" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" CornerRadius="10" Padding="14,13">
+            <Border Background="{DynamicResource Brush.Card}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="10" Padding="14,13">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="88" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Margin="0,0,12,0">
-                        <TextBlock Text="Free-Spin Inertia Suppression" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
-                        <TextBlock Margin="0,5,0,0" FontSize="11" Foreground="{StaticResource Brush.Muted}" TextWrapping="Wrap"
+                        <TextBlock Text="Free-Spin Inertia Suppression" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}" />
+                        <TextBlock Margin="0,5,0,0" FontSize="11" Foreground="{DynamicResource Brush.Muted}" TextWrapping="Wrap"
                                    Text="This module enables detection and prevention of invalid scrolling caused by physical wheel inertia when lifting or placing free-spin mice, such as the Basilisk V3." />
-                        <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{StaticResource Brush.Muted}" TextWrapping="Wrap"
+                        <TextBlock Margin="0,4,0,0" FontSize="11" Foreground="{DynamicResource Brush.Muted}" TextWrapping="Wrap"
                                    Text="At this stage, it only collects data: no pointer movement, click, or scrolling is blocked or delayed." />
                     </StackPanel>
                     <StackPanel Grid.Column="1" HorizontalAlignment="Right">
                         <ToggleButton Style="{StaticResource ModuleSwitch}" IsChecked="{Binding ModuleEnabled, Mode=TwoWay}" Checked="ModuleSwitch_OnChanged" Unchecked="ModuleSwitch_OnChanged"
                                       AutomationProperties.Name="Enable Free-Spin Inertia Suppression"
                                       AutomationProperties.HelpText="When off, the phases are hidden and no input is suppressed." />
-                        <TextBlock Text="Monitor Only" Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="10" Foreground="{StaticResource Brush.Muted}" />
+                        <TextBlock Text="Monitor Only" Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="10" Foreground="{DynamicResource Brush.Muted}" />
                     </StackPanel>
                 </Grid>
             </Border>
 
             <StackPanel Grid.Row="1" Margin="0,12,0,0" Visibility="{Binding ModuleEnabled, Converter={StaticResource BoolToVis}}">
-                <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="8" Padding="11,9">
-                    <TextBlock FontSize="11" Foreground="#1E3A8A" TextWrapping="Wrap"
+                <Border Background="{DynamicResource Brush.InfoSurface}" BorderBrush="{DynamicResource Brush.InfoBorder}" BorderThickness="1" CornerRadius="8" Padding="11,9">
+                    <TextBlock FontSize="11" Foreground="{DynamicResource Brush.InfoText}" TextWrapping="Wrap"
                                Text="Recommended flow: press F8 to start, perform the gesture, then press F8 again to finish without adding the return click to the sample. Esc cancels and discards it." />
                 </Border>
 
-                <TextBlock Text="Choose the gesture to record" Margin="2,14,0,6" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
+                <TextBlock Text="Choose the gesture to record" Margin="2,14,0,6" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}" />
                 <UniformGrid Columns="2" Margin="0,0,0,8">
                     <RadioButton GroupName="phase" Tag="Lift" Style="{StaticResource PhaseOption}" Checked="Phase_OnChecked" IsChecked="{Binding IsLiftSelected, Mode=OneWay}" AutomationProperties.Name="Select lift">
-                        <StackPanel><TextBlock Text="Lift" /><TextBlock Text="{Binding LiftCountText}" FontSize="10" Foreground="{StaticResource Brush.Muted}" Margin="0,3,0,0" /></StackPanel>
+                        <StackPanel><TextBlock Text="Lift" /><TextBlock Text="{Binding LiftCountText}" FontSize="10" Foreground="{DynamicResource Brush.Muted}" Margin="0,3,0,0" /></StackPanel>
                     </RadioButton>
                     <RadioButton GroupName="phase" Tag="Landing" Style="{StaticResource PhaseOption}" Checked="Phase_OnChecked" IsChecked="{Binding IsLandingSelected, Mode=OneWay}" AutomationProperties.Name="Select landing">
-                        <StackPanel><TextBlock Text="Landing" /><TextBlock Text="{Binding LandingCountText}" FontSize="10" Foreground="{StaticResource Brush.Muted}" Margin="0,3,0,0" /></StackPanel>
+                        <StackPanel><TextBlock Text="Landing" /><TextBlock Text="{Binding LandingCountText}" FontSize="10" Foreground="{DynamicResource Brush.Muted}" Margin="0,3,0,0" /></StackPanel>
                     </RadioButton>
                     <RadioButton GroupName="phase" Tag="Reposition" Style="{StaticResource PhaseOption}" Checked="Phase_OnChecked" IsChecked="{Binding IsRepositionSelected, Mode=OneWay}" AutomationProperties.Name="Select full reposition">
-                        <StackPanel><TextBlock Text="Full reposition" /><TextBlock Text="{Binding RepositionCountText}" FontSize="10" Foreground="{StaticResource Brush.Muted}" Margin="0,3,0,0" /></StackPanel>
+                        <StackPanel><TextBlock Text="Full reposition" /><TextBlock Text="{Binding RepositionCountText}" FontSize="10" Foreground="{DynamicResource Brush.Muted}" Margin="0,3,0,0" /></StackPanel>
                     </RadioButton>
                     <RadioButton GroupName="phase" Tag="LegitimateScroll" Style="{StaticResource PhaseOption}" Checked="Phase_OnChecked" IsChecked="{Binding IsLegitimateSelected, Mode=OneWay}" AutomationProperties.Name="Select legitimate scroll">
-                        <StackPanel><TextBlock Text="Legitimate scroll" /><TextBlock Text="{Binding LegitimateCountText}" FontSize="10" Foreground="{StaticResource Brush.Muted}" Margin="0,3,0,0" /></StackPanel>
+                        <StackPanel><TextBlock Text="Legitimate scroll" /><TextBlock Text="{Binding LegitimateCountText}" FontSize="10" Foreground="{DynamicResource Brush.Muted}" Margin="0,3,0,0" /></StackPanel>
                     </RadioButton>
                 </UniformGrid>
 
-                <Border Background="{StaticResource Brush.Card}" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" CornerRadius="8" Padding="13">
+                <Border Background="{DynamicResource Brush.Card}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8" Padding="13">
                     <StackPanel>
-                        <TextBlock Text="{Binding SelectedStageTitle}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
-                        <TextBlock Text="{Binding SelectedInstructions}" Margin="0,4,0,9" FontSize="11" Foreground="{StaticResource Brush.Muted}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding SelectedStageTitle}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}" />
+                        <TextBlock Text="{Binding SelectedInstructions}" Margin="0,4,0,9" FontSize="11" Foreground="{DynamicResource Brush.Muted}" TextWrapping="Wrap" />
                         <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="135" /></Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding SelectedCountText}" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource Brush.Text}" />
+                            <TextBlock Text="{Binding SelectedCountText}" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource Brush.Text}" />
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="Target (30–50)" FontSize="10" Foreground="{StaticResource Brush.Muted}" />
+                                <TextBlock Text="Target (30–50)" FontSize="10" Foreground="{DynamicResource Brush.Muted}" />
                                 <TextBox Text="{Binding SelectedTargetText, UpdateSourceTrigger=PropertyChanged}" LostFocus="Target_OnLostFocus" KeyDown="Target_OnKeyDown"
                                          AutomationProperties.Name="Selected phase target" AutomationProperties.HelpText="Enter a value between 30 and 50." />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding StatusText}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-                        <TextBlock Text="{Binding CaptureMetricsText}" Margin="0,3,0,9" FontSize="10" Foreground="{StaticResource Brush.Muted}" />
+                        <TextBlock Text="{Binding StatusText}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock Text="{Binding CaptureMetricsText}" Margin="0,3,0,9" FontSize="10" Foreground="{DynamicResource Brush.Muted}" />
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -166,7 +195,7 @@
                         </Grid>
                     </StackPanel>
                 </Border>
-                <TextBlock Text="{Binding ErrorText}" Margin="2,8,2,0" FontSize="11" Foreground="#B91C1C" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                <TextBlock Text="{Binding ErrorText}" Margin="2,8,2,0" FontSize="11" Foreground="{DynamicResource Brush.DangerText}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
             </StackPanel>
         </Grid>
     </ScrollViewer>

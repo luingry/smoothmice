@@ -69,6 +69,37 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void Default_settings_leave_dark_mode_disabled()
+    {
+        var settings = DefaultSettings.CreateAppSettings();
+
+        Assert.False(settings.DarkMode);
+    }
+
+    [Fact]
+    public void Clone_preserves_dark_mode_setting()
+    {
+        var settings = new AppSettings { DarkMode = true };
+
+        var clone = settings.Clone();
+
+        Assert.True(clone.DarkMode);
+        settings.DarkMode = false;
+        Assert.True(clone.DarkMode);
+    }
+
+    [Fact]
+    public void Profile_manager_snapshot_retains_dark_mode_update()
+    {
+        var manager = new ProfileManager(DefaultSettings.CreateAppSettings());
+
+        manager.SetDarkMode(true);
+
+        Assert.True(manager.DarkMode);
+        Assert.True(manager.Snapshot.DarkMode);
+    }
+
+    [Fact]
     public void Clone_preserves_game_bypass_setting()
     {
         var settings = new AppSettings { DoNotActivateInGames = true };
@@ -101,6 +132,69 @@ public class AppSettingsTests
             repository.Save(new AppSettings { DoNotActivateInGames = true });
 
             Assert.True(repository.LoadOrCreate().DoNotActivateInGames);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory) &&
+                !Directory.EnumerateFileSystemEntries(directory).Any())
+                Directory.Delete(directory);
+        }
+    }
+
+    [Fact]
+    public void Json_repository_defaults_to_light_when_dark_mode_field_is_missing()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "SmoothMice.Tests", Guid.NewGuid() + ".json");
+        var repository = new JsonSettingsRepository(path);
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "{\"schemaVersion\":1}");
+
+            Assert.False(repository.LoadOrCreate().DarkMode);
+        }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory) &&
+                !Directory.EnumerateFileSystemEntries(directory).Any())
+                Directory.Delete(directory);
+        }
+    }
+
+    [Fact]
+    public void View_model_dark_mode_toggle_persists_and_applies_theme_immediately()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "SmoothMice.Tests", Guid.NewGuid() + ".json");
+        var repository = new JsonSettingsRepository(path);
+        var manager = new ProfileManager(DefaultSettings.CreateAppSettings());
+        var applyCount = 0;
+        var appliedDarkMode = false;
+        var viewModel = new MainViewModel(
+            manager,
+            () => repository.Save(manager.Snapshot),
+            () => { },
+            darkMode =>
+            {
+                applyCount++;
+                appliedDarkMode = darkMode;
+            });
+
+        try
+        {
+            applyCount = 0;
+            viewModel.DarkMode = true;
+
+            Assert.True(manager.Snapshot.DarkMode);
+            Assert.True(repository.LoadOrCreate().DarkMode);
+            Assert.True(appliedDarkMode);
+            Assert.Equal(1, applyCount);
         }
         finally
         {

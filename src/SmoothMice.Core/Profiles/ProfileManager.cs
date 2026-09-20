@@ -27,6 +27,16 @@ public sealed class ProfileManager
         }
     }
 
+    /// <summary>Global visual preference shared by every application window.</summary>
+    public bool DarkMode
+    {
+        get
+        {
+            lock (_lock)
+                return _settings.DarkMode;
+        }
+    }
+
     public AppSettings Snapshot
     {
         get
@@ -78,6 +88,13 @@ public sealed class ProfileManager
     {
         lock (_lock)
             _settings.DoNotActivateInGames = enabled;
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetDarkMode(bool enabled)
+    {
+        lock (_lock)
+            _settings.DarkMode = enabled;
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 

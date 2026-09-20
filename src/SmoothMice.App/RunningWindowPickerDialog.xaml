@@ -7,7 +7,7 @@
         MinWidth="430"
         MinHeight="300"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource Brush.Surface}"
+        Background="{DynamicResource Brush.Surface}"
         FontFamily="Segoe UI Variable, Segoe UI"
         TextOptions.TextFormattingMode="Display"
         UseLayoutRounding="True"
@@ -19,14 +19,14 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <StackPanel>
-            <TextBlock Text="Select running window" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
-            <TextBlock Margin="0,5,0,12" Text="Visible windows are checked now. Choose the window whose executable should receive the profile." FontSize="12" Foreground="{StaticResource Brush.Muted}" TextWrapping="Wrap" />
+            <TextBlock Text="Select running window" FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}" />
+            <TextBlock Margin="0,5,0,12" Text="Visible windows are checked now. Choose the window whose executable should receive the profile." FontSize="12" Foreground="{DynamicResource Brush.Muted}" TextWrapping="Wrap" />
         </StackPanel>
         <Grid Grid.Row="1">
             <ListBox x:Name="WindowsList" ItemsSource="{Binding}" SelectionChanged="WindowsList_OnSelectionChanged"
                      AutomationProperties.Name="Available running windows" AutomationProperties.HelpText="Each item shows the window title, process, and process identifier.">
                 <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                         <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
                     </Style>
                 </ListBox.ItemContainerStyle>
@@ -36,12 +36,12 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
-            <Border x:Name="EmptyState" Background="{StaticResource Brush.Card}" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" CornerRadius="7" Padding="16" Visibility="Collapsed">
-                <TextBlock Text="No visible window with an accessible executable was found. Close this window and try again after opening the application you want." TextAlignment="Center" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{StaticResource Brush.Muted}" />
+            <Border x:Name="EmptyState" Background="{DynamicResource Brush.Card}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="7" Padding="16" Visibility="Collapsed">
+                <TextBlock Text="No visible window with an accessible executable was found. Close this window and try again after opening the application you want." TextAlignment="Center" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Muted}" />
             </Border>
         </Grid>
         <DockPanel Grid.Row="2" LastChildFill="False" Margin="0,14,0,0">
-            <TextBlock x:Name="SelectionHint" DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="{StaticResource Brush.Muted}" FontSize="11" Text="Select a window to continue." />
+            <TextBlock x:Name="SelectionHint" DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Muted}" FontSize="11" Text="Select a window to continue." />
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button Content="Cancel" IsCancel="True" MinWidth="82" Margin="0,0,8,0" AutomationProperties.Name="Cancel window selection" />
                 <Button x:Name="AddButton" Content="Add profile" IsDefault="True" IsEnabled="False" MinWidth="110" Click="AddProfile_OnClick" AutomationProperties.Name="Add profile for selected window" />

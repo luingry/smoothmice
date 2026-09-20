@@ -7,7 +7,7 @@
         MinHeight="220"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource Brush.Surface}"
+        Background="{DynamicResource Brush.Surface}"
         FontFamily="Segoe UI Variable, Segoe UI"
         TextOptions.TextFormattingMode="Display"
         UseLayoutRounding="True"
@@ -19,8 +19,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <StackPanel>
-            <TextBlock Text="Add app profile" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
-            <TextBlock Margin="0,5,0,14" Text="Choose how to find the executable for this profile." FontSize="12" Foreground="{StaticResource Brush.Muted}" TextWrapping="Wrap" />
+            <TextBlock Text="Add app profile" FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}" />
+            <TextBlock Margin="0,5,0,14" Text="Choose how to find the executable for this profile." FontSize="12" Foreground="{DynamicResource Brush.Muted}" TextWrapping="Wrap" />
         </StackPanel>
         <StackPanel Grid.Row="1">
             <Button Padding="12,9" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="SelectExecutable_OnClick"
@@ -28,7 +28,7 @@
                     AutomationProperties.HelpText="Opens the file picker to choose an executable program.">
                 <StackPanel>
                     <TextBlock Text="_Select executable" FontWeight="SemiBold" />
-                    <TextBlock Text="Choose an .exe file by path" FontSize="11" Foreground="{StaticResource Brush.Muted}" />
+                    <TextBlock Text="Choose an .exe file by path" FontSize="11" Foreground="{DynamicResource Brush.Muted}" />
                 </StackPanel>
             </Button>
             <Button Padding="12,9" HorizontalContentAlignment="Left" Click="SelectRunningWindow_OnClick"
@@ -36,7 +36,7 @@
                     AutomationProperties.HelpText="Lists visible running windows so you can choose the application.">
                 <StackPanel>
                     <TextBlock Text="Select _running window" FontWeight="SemiBold" />
-                    <TextBlock Text="Choose a visible window and use its executable" FontSize="11" Foreground="{StaticResource Brush.Muted}" />
+                    <TextBlock Text="Choose a visible window and use its executable" FontSize="11" Foreground="{DynamicResource Brush.Muted}" />
                 </StackPanel>
             </Button>
         </StackPanel>

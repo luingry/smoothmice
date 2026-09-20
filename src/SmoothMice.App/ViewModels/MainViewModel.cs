@@ -17,9 +17,11 @@ public sealed class MainViewModel : ViewModelBase
     private readonly ProfileManager _manager;
     private readonly Action _persist;
     private readonly Action _requestManualUpdateCheck;
+    private readonly Action<bool> _applyTheme;
 
     private bool _autoStartOnLogin;
     private bool _doNotActivateInGames;
+    private bool _darkMode;
     private ScrollProfile? _selected;
     private UpdateCheckFrequency _updateCheckFrequency;
     private bool _updateFlowActive;
@@ -39,11 +41,13 @@ public sealed class MainViewModel : ViewModelBase
         new(UpdateCheckFrequency.Never, "Never"),
     ];
 
-    public MainViewModel(ProfileManager manager, Action persist, Action requestManualUpdateCheck)
+    public MainViewModel(ProfileManager manager, Action persist, Action requestManualUpdateCheck,
+        Action<bool>? applyTheme = null)
     {
         _manager = manager;
         _persist = persist;
         _requestManualUpdateCheck = requestManualUpdateCheck;
+        _applyTheme = applyTheme ?? (_ => { });
         ProfileNames = new ObservableCollection<string>();
 
         ResetAllCommand    = new RelayCommand(_ => ResetAll());
@@ -72,6 +76,18 @@ public sealed class MainViewModel : ViewModelBase
         {
             if (!Set(ref _doNotActivateInGames, value)) return;
             _manager.SetDoNotActivateInGames(value);
+            _persist();
+        }
+    }
+
+    public bool DarkMode
+    {
+        get => _darkMode;
+        set
+        {
+            if (!Set(ref _darkMode, value)) return;
+            _manager.SetDarkMode(value);
+            _applyTheme(value);
             _persist();
         }
     }
@@ -308,6 +324,9 @@ public sealed class MainViewModel : ViewModelBase
         var snap = _manager.Snapshot;
         AutoStartOnLogin = snap.AutoStartOnLogin;
         DoNotActivateInGames = snap.DoNotActivateInGames;
+        _darkMode = snap.DarkMode;
+        _applyTheme(_darkMode);
+        Raise(nameof(DarkMode));
         UpdateCheckFrequency = snap.UpdateCheckFrequency;
 
         ProfileNames.Clear();

@@ -32,6 +32,7 @@ public static class DefaultSettings
         UpdateCheckFrequency = UpdateCheckFrequency.DailyOnStartup,
         FreeSpinInertiaSuppressionEnabled = false,
         DoNotActivateInGames = false,
+        DarkMode = false,
         FreeSpinLiftTarget = 40,
         FreeSpinLandingTarget = 40,
         FreeSpinRepositionTarget = 40,
