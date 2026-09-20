@@ -1,0 +1,46 @@
+<Window x:Class="SmoothMice.App.ProfileAddSourceDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add profile"
+        Width="430"
+        SizeToContent="Height"
+        MinHeight="220"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Brush.Surface}"
+        FontFamily="Segoe UI Variable, Segoe UI"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+    <Grid Margin="20,18,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="Add app profile" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}" />
+            <TextBlock Margin="0,5,0,14" Text="Choose how to find the executable for this profile." FontSize="12" Foreground="{StaticResource Brush.Muted}" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Row="1">
+            <Button Padding="12,9" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="SelectExecutable_OnClick"
+                    IsDefault="True" AutomationProperties.Name="Select executable by path"
+                    AutomationProperties.HelpText="Opens the file picker to choose an executable program.">
+                <StackPanel>
+                    <TextBlock Text="_Select executable" FontWeight="SemiBold" />
+                    <TextBlock Text="Choose an .exe file by path" FontSize="11" Foreground="{StaticResource Brush.Muted}" />
+                </StackPanel>
+            </Button>
+            <Button Padding="12,9" HorizontalContentAlignment="Left" Click="SelectRunningWindow_OnClick"
+                    AutomationProperties.Name="Select running window"
+                    AutomationProperties.HelpText="Lists visible running windows so you can choose the application.">
+                <StackPanel>
+                    <TextBlock Text="Select _running window" FontWeight="SemiBold" />
+                    <TextBlock Text="Choose a visible window and use its executable" FontSize="11" Foreground="{StaticResource Brush.Muted}" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+        <Button Grid.Row="2" Content="Cancel" HorizontalAlignment="Right" MinWidth="82" Margin="0,16,0,0"
+                IsCancel="True" AutomationProperties.Name="Cancel adding profile" />
+    </Grid>
+</Window>

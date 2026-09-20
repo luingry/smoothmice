@@ -2,10 +2,13 @@
   <PropertyGroup>
     <RootNamespace>SmoothMice.Core.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="xunit" Version="2.6.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.4">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -14,5 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\SmoothMice.Core\SmoothMice.Core.csproj" />
+    <ProjectReference Include="..\..\src\SmoothMice.Infrastructure\SmoothMice.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\SmoothMice.App\SmoothMice.App.csproj" />
   </ItemGroup>
 </Project>

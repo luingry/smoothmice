@@ -22,6 +22,12 @@ public sealed class MouseHookService : IDisposable
     /// </summary>
     public event EventHandler<ScrollPulseCapturedEventArgs>? ScrollPulseCaptured;
 
+    /// <summary>
+    /// Physical mouse events for an active calibration recorder. This is diagnostic-only: the
+    /// hook never waits for it and subscriber faults are isolated from normal mouse input.
+    /// </summary>
+    public event EventHandler<FreeSpinPhysicalInputEventArgs>? PhysicalInputCaptured;
+
     public MouseHookService(ScrollPulseLogger? scrollPulseLogger = null) =>
         _scrollPulseLogger = scrollPulseLogger;
 
@@ -66,10 +72,13 @@ public sealed class MouseHookService : IDisposable
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && (MouseWheel is not null || _scrollPulseLogger is not null || ScrollPulseCaptured is not null))
+        if (nCode >= 0)
         {
             var msg = wParam.ToInt32();
-            if (msg is NativeMethods.WmMousewheel or NativeMethods.WmMousehwheel)
+            var needsWheel = MouseWheel is not null || _scrollPulseLogger is not null || ScrollPulseCaptured is not null;
+            var needsPhysical = PhysicalInputCaptured is not null;
+            var isWheel = msg is NativeMethods.WmMousewheel or NativeMethods.WmMousehwheel;
+            if ((needsWheel && isWheel) || (needsPhysical && IsPhysicalMessage(msg)))
             {
                 var info = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
 
@@ -77,30 +86,82 @@ public sealed class MouseHookService : IDisposable
                 // our own smoothed events and potentially double-smoothing them.
                 if ((info.flags & NativeMethods.LlmhfInjected) != 0)
                     return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
-                var delta = unchecked((short)(unchecked((uint)info.mouseData) >> 16));
-                var horizontal = msg == NativeMethods.WmMousehwheel;
-                var shift = (NativeMethods.GetKeyState(NativeMethods.VkShift) & 0x8000) != 0;
-                if (_scrollPulseLogger is not null || ScrollPulseCaptured is not null)
+                if (needsPhysical)
+                    PublishPhysicalInput(CreatePhysicalInput(msg, info));
+
+                if (needsWheel && isWheel)
                 {
-                    var pulse = new ScrollPulseDiagnosticPulse(
-                        DateTimeOffset.UtcNow,
-                        Stopwatch.GetTimestamp(),
-                        horizontal,
-                        delta,
-                        shift,
-                        info.pt.X,
-                        info.pt.Y);
-                    _scrollPulseLogger?.Record(pulse);
-                    PublishCapturedPulse(pulse);
+                    var delta = unchecked((short)(unchecked((uint)info.mouseData) >> 16));
+                    var horizontal = msg == NativeMethods.WmMousehwheel;
+                    var shift = (NativeMethods.GetKeyState(NativeMethods.VkShift) & 0x8000) != 0;
+                    if (_scrollPulseLogger is not null || ScrollPulseCaptured is not null)
+                    {
+                        var pulse = new ScrollPulseDiagnosticPulse(
+                            DateTimeOffset.UtcNow,
+                            Stopwatch.GetTimestamp(),
+                            horizontal,
+                            delta,
+                            shift,
+                            info.pt.X,
+                            info.pt.Y);
+                        _scrollPulseLogger?.Record(pulse);
+                        PublishCapturedPulse(pulse);
+                    }
+                    var args = new MouseWheelHookEventArgs(delta, horizontal, shift, info.pt);
+                    MouseWheel?.Invoke(this, args);
+                    if (args.Handled)
+                        return (IntPtr)1;
                 }
-                var args = new MouseWheelHookEventArgs(delta, horizontal, shift, info.pt);
-                MouseWheel?.Invoke(this, args);
-                if (args.Handled)
-                    return (IntPtr)1;
             }
         }
 
         return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
+    }
+
+    private static bool IsPhysicalMessage(int msg) => msg is
+        NativeMethods.WmMousemove or NativeMethods.WmMousewheel or NativeMethods.WmMousehwheel or
+        NativeMethods.WmLbuttondown or NativeMethods.WmLbuttonup or NativeMethods.WmRbuttondown or
+        NativeMethods.WmRbuttonup or NativeMethods.WmMbuttondown or NativeMethods.WmMbuttonup or
+        NativeMethods.WmXbuttondown or NativeMethods.WmXbuttonup;
+
+    private static FreeSpinRawInputEvent CreatePhysicalInput(int msg, NativeMethods.MSLLHOOKSTRUCT info)
+    {
+        var input = new FreeSpinRawInputEvent
+        {
+            TimestampUtc = DateTimeOffset.UtcNow,
+            StopwatchTicks = Stopwatch.GetTimestamp(),
+            X = info.pt.X,
+            Y = info.pt.Y,
+        };
+        if (msg is NativeMethods.WmMousewheel or NativeMethods.WmMousehwheel)
+        {
+            input.Kind = FreeSpinRawEventKind.Wheel;
+            input.WheelDelta = unchecked((short)(unchecked((uint)info.mouseData) >> 16));
+            input.WheelAxis = msg == NativeMethods.WmMousehwheel ? "horizontal" : "vertical";
+            return input;
+        }
+        if (msg == NativeMethods.WmMousemove)
+        {
+            input.Kind = FreeSpinRawEventKind.Move;
+            return input;
+        }
+        input.Kind = FreeSpinRawEventKind.Button;
+        input.IsButtonDown = msg is NativeMethods.WmLbuttondown or NativeMethods.WmRbuttondown or NativeMethods.WmMbuttondown or NativeMethods.WmXbuttondown;
+        input.Button = msg is NativeMethods.WmLbuttondown or NativeMethods.WmLbuttonup ? FreeSpinMouseButton.Left :
+            msg is NativeMethods.WmRbuttondown or NativeMethods.WmRbuttonup ? FreeSpinMouseButton.Right :
+            msg is NativeMethods.WmMbuttondown or NativeMethods.WmMbuttonup ? FreeSpinMouseButton.Middle :
+            ((unchecked((uint)info.mouseData) >> 16) & 0xffff) == 1 ? FreeSpinMouseButton.X1 : FreeSpinMouseButton.X2;
+        return input;
+    }
+
+    private void PublishPhysicalInput(FreeSpinRawInputEvent input)
+    {
+        var subscribers = PhysicalInputCaptured;
+        if (subscribers is null)
+            return;
+        var args = new FreeSpinPhysicalInputEventArgs(input);
+        try { subscribers(this, args); }
+        catch { /* diagnostics are always fail-open */ }
     }
 
     private void PublishCapturedPulse(ScrollPulseDiagnosticPulse pulse)
@@ -150,4 +211,10 @@ public sealed class ScrollPulseCapturedEventArgs : EventArgs
     public ScrollPulseCapturedEventArgs(ScrollPulseDiagnosticPulse pulse) => Pulse = pulse;
 
     public ScrollPulseDiagnosticPulse Pulse { get; }
+}
+
+public sealed class FreeSpinPhysicalInputEventArgs : EventArgs
+{
+    public FreeSpinPhysicalInputEventArgs(FreeSpinRawInputEvent input) => Input = input;
+    public FreeSpinRawInputEvent Input { get; }
 }

@@ -4,6 +4,37 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.1.5 — 2026-09-20
+
+### New — profile sources, controls, and English UI
+
+- **Profile picker:** add an app profile from an executable path or a running window, with an initial window selected automatically when one is available.
+- **Profile controls:** the **+** and **—** buttons now sit beside the profile selector.
+- **UI:** reorganized the footer, translated visible application UI to English, and added the **Free-Spin Inertia Suppression (beta)** entry point.
+- **Consolidation:** this release also includes the 2.1.3 and 2.1.4 fixes documented below.
+
+---
+
+## 2.1.4 — 2026-09-20
+
+### Correção — bypass em Dying Light: The Beast + persistência imediata
+
+- **Deteção Techland:** a classe raiz real `techland_game_class` passa a ser reconhecida como sinal forte de jogo, ainda exigindo janela em foco ou fullscreen/borderless e mantendo as exclusões explícitas.
+- **Preferência:** alternar **Não ativar em jogos** grava imediatamente a opção global através do fluxo de persistência, sem depender da ordem dos eventos `Checked`/binding do WPF.
+- **Regressão:** cobertura com os sinais reais capturados de Dying Light: The Beast, negativos fail-open e persistência `ViewModel → snapshot → JSON`.
+
+---
+
+## 2.1.3 — 2026-09-20
+
+### Novo — bypass global conservador para jogos
+
+- **Opção global:** adicionada **Não ativar em jogos**, persistida em JSON e desativada por padrão; quando ativa, deixa a roda física passar nativamente para jogos identificados de forma conservadora.
+- **Classificador/cache:** classificação por classes fortes de engines, janela raiz e sinais de foco/fullscreen/borderless, com exclusões para browsers, players, apresentações, shell e launchers. O cache por raiz/PID tem TTL curto e falha aberta.
+- Animações pendentes para um alvo de jogo são canceladas; apps normais e sinais incertos mantêm a suavização existente.
+
+---
+
 ## 2.1.2 — 2026-09-19
 
 ### Monitor de scroll ao vivo + diagnóstico NDJSON opcional

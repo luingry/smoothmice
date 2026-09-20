@@ -8,6 +8,7 @@ using SmoothMice.Core.Profiles;
 using SmoothMice.Core.Scrolling;
 using SmoothMice.Core.Updates;
 using SmoothMice.Infrastructure.Updates;
+using SmoothMice.Infrastructure.Windows;
 
 namespace SmoothMice.App.ViewModels;
 
@@ -18,6 +19,7 @@ public sealed class MainViewModel : ViewModelBase
     private readonly Action _requestManualUpdateCheck;
 
     private bool _autoStartOnLogin;
+    private bool _doNotActivateInGames;
     private ScrollProfile? _selected;
     private UpdateCheckFrequency _updateCheckFrequency;
     private bool _updateFlowActive;
@@ -61,6 +63,17 @@ public sealed class MainViewModel : ViewModelBase
     {
         get => _autoStartOnLogin;
         set => Set(ref _autoStartOnLogin, value);
+    }
+
+    public bool DoNotActivateInGames
+    {
+        get => _doNotActivateInGames;
+        set
+        {
+            if (!Set(ref _doNotActivateInGames, value)) return;
+            _manager.SetDoNotActivateInGames(value);
+            _persist();
+        }
     }
 
     public UpdateCheckFrequency UpdateCheckFrequency
@@ -294,6 +307,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         var snap = _manager.Snapshot;
         AutoStartOnLogin = snap.AutoStartOnLogin;
+        DoNotActivateInGames = snap.DoNotActivateInGames;
         UpdateCheckFrequency = snap.UpdateCheckFrequency;
 
         ProfileNames.Clear();
@@ -366,20 +380,86 @@ public sealed class MainViewModel : ViewModelBase
 
     private void AddProfile()
     {
-        var dlg = new OpenFileDialog
+        var owner = Application.Current?.MainWindow;
+        var sourceDialog = new ProfileAddSourceDialog();
+        if (owner is not null)
+            sourceDialog.Owner = owner;
+
+        if (sourceDialog.ShowDialog() != true || sourceDialog.SelectedSource is null)
+            return;
+
+        switch (sourceDialog.SelectedSource.Value)
+        {
+            case ProfileAddSource.ExecutablePath:
+                AddProfileFromPath(owner);
+                break;
+            case ProfileAddSource.RunningWindow:
+                AddProfileFromRunningWindow(owner);
+                break;
+        }
+    }
+
+    private void AddProfileFromPath(Window? owner)
+    {
+        var dialog = new OpenFileDialog
         {
             Filter = "Programs (*.exe)|*.exe|All files (*.*)|*.*",
-            Title  = "Pick an application executable",
+            Title = "Pick an application executable",
         };
-        if (dlg.ShowDialog() != true) return;
+        if (dialog.ShowDialog(owner) != true)
+            return;
 
-        var exe  = Path.GetFileName(dlg.FileName);
-        var name = Path.GetFileNameWithoutExtension(dlg.FileName);
-        if (!_manager.TryAddAppProfile(exe, string.IsNullOrWhiteSpace(name) ? exe : name))
+        AddOrSelectAppProfile(Path.GetFileName(dialog.FileName));
+    }
+
+    private void AddProfileFromRunningWindow(Window? owner)
+    {
+        var candidates = ActiveAppResolver.EnumerateVisibleTopLevelWindows();
+        var dialog = new RunningWindowPickerDialog(candidates);
+        if (owner is not null)
+            dialog.Owner = owner;
+
+        if (dialog.ShowDialog() != true || dialog.SelectedWindow is null)
+            return;
+
+        AddOrSelectAppProfile(dialog.SelectedWindow.ExecutableName);
+    }
+
+    /// <summary>
+    /// Adds a profile when needed and always moves the shell/UI selection to the executable's
+    /// profile. This makes a duplicate selection useful instead of treating it as an error.
+    /// </summary>
+    internal void AddOrSelectAppProfile(string executableName)
+    {
+        executableName = executableName?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(executableName))
+            return;
+
+        var snapshot = _manager.Snapshot;
+        var profile = snapshot.Profiles.FirstOrDefault(profile =>
+            !profile.IsGlobal && string.Equals(profile.ExecutableName, executableName,
+                StringComparison.OrdinalIgnoreCase));
+        if (profile is null)
         {
-            MessageBox.Show("A profile for this executable already exists.", "SmoothMice");
+            var displayName = Path.GetFileNameWithoutExtension(executableName);
+            // A concurrent settings update can have created it after our first snapshot.
+            _ = _manager.TryAddAppProfile(executableName,
+                string.IsNullOrWhiteSpace(displayName) ? executableName : displayName);
+            snapshot = _manager.Snapshot;
+
+            profile = snapshot.Profiles.FirstOrDefault(candidate =>
+                !candidate.IsGlobal && string.Equals(candidate.ExecutableName, executableName,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (profile is null)
+        {
+            MessageBox.Show("Could not create a profile for that executable.", "SmoothMice",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+
+        _manager.UpdateShell(AutoStartOnLogin, profile.Id, UpdateCheckFrequency);
         ReloadFromManager();
         _persist();
     }

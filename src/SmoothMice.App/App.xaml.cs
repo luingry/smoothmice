@@ -28,7 +28,9 @@ public partial class App : Application
     private ScrollCoordinator? _coordinator;
     private ScrollPulseLogger? _scrollPulseLogger;
     private MouseHookService? _mouseHook;
+    private FreeSpinCalibrationRecorder? _freeSpinRecorder;
     private ScrollPulseMonitorWindow? _scrollMonitorWindow;
+    private FreeSpinInertiaSuppressionWindow? _freeSpinInertiaSuppressionWindow;
     private TrayIconService? _tray;
     private StartupRegistrationService? _startup;
     private MainViewModel? _vm;
@@ -52,6 +54,7 @@ public partial class App : Application
             _scrollPulseLogger = ScrollPulseLogger.TryStartDefault();
 
         _mouseHook = new MouseHookService(_scrollPulseLogger);
+        _freeSpinRecorder = new FreeSpinCalibrationRecorder(_mouseHook);
         var injector = new ScrollInjector();
         var apps = new ActiveAppResolver();
         _coordinator = new ScrollCoordinator(_profiles, _mouseHook, injector, apps);
@@ -481,6 +484,10 @@ public partial class App : Application
 
             _scrollMonitorWindow?.Close();
             _scrollMonitorWindow = null;
+            _freeSpinInertiaSuppressionWindow?.Close();
+            _freeSpinInertiaSuppressionWindow = null;
+            _freeSpinRecorder?.Dispose();
+            _freeSpinRecorder = null;
             _coordinator?.Dispose();
             _scrollPulseLogger?.Dispose();
             _tray?.Dispose();
@@ -523,6 +530,53 @@ public partial class App : Application
         _scrollMonitorWindow = monitor;
         monitor.Show();
         monitor.Activate();
+    }
+
+    internal void ShowFreeSpinInertiaSuppression(Window owner)
+    {
+        if (_freeSpinInertiaSuppressionWindow is { } existing)
+        {
+            if (existing.WindowState == WindowState.Minimized)
+                existing.WindowState = WindowState.Normal;
+            existing.Show();
+            existing.Activate();
+            existing.Focus();
+            return;
+        }
+
+        if (_profiles is null || _freeSpinRecorder is null)
+            return;
+
+        var settings = _profiles.Snapshot;
+        var module = new FreeSpinInertiaSuppressionWindow(
+            settings.FreeSpinInertiaSuppressionEnabled,
+            settings.FreeSpinLiftTarget,
+            settings.FreeSpinLandingTarget,
+            settings.FreeSpinRepositionTarget,
+            settings.FreeSpinLegitimateScrollTarget,
+            _freeSpinRecorder,
+            enabled =>
+            {
+                _profiles.SetFreeSpinInertiaSuppressionEnabled(enabled);
+                Persist();
+            },
+            (phase, target) =>
+            {
+                _profiles.SetFreeSpinCalibrationTarget(phase, target);
+                Persist();
+            })
+        {
+            Owner = owner,
+            Icon = CreateWindowIcon(),
+        };
+        module.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_freeSpinInertiaSuppressionWindow, module))
+                _freeSpinInertiaSuppressionWindow = null;
+        };
+        _freeSpinInertiaSuppressionWindow = module;
+        module.Show();
+        module.Activate();
     }
 
     private static ImageSource CreateWindowIcon()

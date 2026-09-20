@@ -30,6 +30,12 @@ public static class DefaultSettings
         AutoStartOnLogin  = true,
         SelectedProfileId = GlobalProfileId,
         UpdateCheckFrequency = UpdateCheckFrequency.DailyOnStartup,
+        FreeSpinInertiaSuppressionEnabled = false,
+        DoNotActivateInGames = false,
+        FreeSpinLiftTarget = 40,
+        FreeSpinLandingTarget = 40,
+        FreeSpinRepositionTarget = 40,
+        FreeSpinLegitimateScrollTarget = 40,
         LastUpdateCheckUtc = null,
         Profiles =
         [

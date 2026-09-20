@@ -38,6 +38,7 @@ public sealed class ScrollCoordinator : IDisposable
     private bool _running;
     private int  _ticking;
     private bool _timerPeriodSet;
+    private long _sessionGeneration;
 
     // Cached state for the current scroll session — written in OnMouseWheel under _gate,
     // read in TickCore under _gate, cleared when engines go quiet.
@@ -83,6 +84,7 @@ public sealed class ScrollCoordinator : IDisposable
         _injector = injector;
         _apps     = apps;
         _hook.MouseWheel += OnMouseWheel;
+        _profiles.SettingsChanged += OnSettingsChanged;
     }
 
     public void Start()
@@ -116,17 +118,48 @@ public sealed class ScrollCoordinator : IDisposable
             _cachedSettings   = null;
             _cachedHwnd       = IntPtr.Zero;
             _cachedIsElevated = false;
+            _sessionGeneration++;
             _running = false;
         }
     }
 
     public void RefreshEnabledState() => Start();
 
+    private void OnSettingsChanged(object? sender, EventArgs e)
+    {
+        // Enabling the global bypass must also stop an already queued animation for a game,
+        // even if no additional wheel event arrives. ActiveAppResolver serializes this cached
+        // out-of-tick query with the hook thread.
+        if (!_profiles.DoNotActivateInGames)
+            return;
+
+        IntPtr target;
+        lock (_gate)
+            target = _cachedHwnd;
+
+        if (target != IntPtr.Zero && _apps.IsLikelyGameWindow(target))
+            CancelPendingAnimationFor(target);
+    }
+
     private void OnMouseWheel(object? sender, MouseWheelHookEventArgs e)
     {
         // Resolve against the window UNDER THE CURSOR (not the foreground window).
         var hwndTarget = NativeMethods.WindowFromPoint(e.ScreenPoint);
-        var (exeName, parentExeName, isElevated, isLegacyScrollControl) = _apps.TryGetWindowInfo(hwndTarget);
+
+        // This opt-in is evaluated before profile resolution, interception, or e.Handled. A
+        // conservative positive leaves the original physical event entirely to Windows/the game.
+        // Detection is cached by ActiveAppResolver and never runs in the animation tick.
+        uint gameProcessId = 0;
+        string? gameExecutableName = null;
+        if (_profiles.DoNotActivateInGames &&
+            _apps.IsLikelyGameWindow(hwndTarget, out gameProcessId, out gameExecutableName))
+        {
+            CancelPendingAnimationFor(hwndTarget);
+            return;
+        }
+
+        var (exeName, parentExeName, isElevated, isLegacyScrollControl) =
+            _apps.TryGetWindowInfo(hwndTarget, gameProcessId, gameExecutableName);
         var resolution = _profiles.ResolveForExecutable(exeName, parentExeName);
         if (!resolution.InterceptForSmoothing) return;
 
@@ -203,6 +236,7 @@ public sealed class ScrollCoordinator : IDisposable
         IntPtr              hwnd;
         NativeMethods.POINT screenPt;
         bool                isElevated;
+        long                sessionGeneration;
         int dv, dh;
 
         lock (_gate)
@@ -213,6 +247,7 @@ public sealed class ScrollCoordinator : IDisposable
             hwnd       = _cachedHwnd;
             screenPt   = _cachedScreenPt;
             isElevated = _cachedIsElevated;
+            sessionGeneration = _sessionGeneration;
 
             var now = EnvironmentEx.TickCount64;
             dv = _vertical.Tick(now, settings);
@@ -234,7 +269,13 @@ public sealed class ScrollCoordinator : IDisposable
         bool targetFocused = rootOfTarget != IntPtr.Zero && rootOfTarget == foreground;
         bool useSendInput  = targetFocused || isElevated;
 
-        // Inject outside the lock (kernel call — must not hold _gate).
+        // Do not hold _gate across SendInput/PostMessage. In the foreground path this is
+        // SendInput, and a FreeSpin burst can otherwise make WH_MOUSE_LL wait behind a native
+        // injection on every 4 ms tick. Cancellation invalidates the session and clears both
+        // engines; at most this already-calculated, bounded tick can race with the cancellation.
+        if (sessionGeneration != System.Threading.Volatile.Read(ref _sessionGeneration))
+            return;
+
         if (useSendInput)
         {
             if (dv != 0) _injector.TryInjectWheel(dv, horizontal: false);
@@ -299,6 +340,36 @@ public sealed class ScrollCoordinator : IDisposable
         _lastEventMs        = -1;
     }
 
+    /// <summary>
+    /// Drops pending motion for a newly bypassed game target. The generation change also makes a
+    /// concurrent tick that already consumed deltas abandon them before it can inject.
+    /// </summary>
+    private void CancelPendingAnimationFor(IntPtr hwnd)
+    {
+        lock (_gate)
+        {
+            if (_cachedHwnd == IntPtr.Zero)
+                return;
+
+            // WindowFromPoint can resolve a different child HWND on consecutive events while
+            // both children belong to the same game root. Cancel that whole destination too.
+            var cachedRoot = NativeMethods.GetAncestor(_cachedHwnd, NativeMethods.GaRoot);
+            var bypassedRoot = NativeMethods.GetAncestor(hwnd, NativeMethods.GaRoot);
+            if (_cachedHwnd != hwnd &&
+                (cachedRoot == IntPtr.Zero || bypassedRoot == IntPtr.Zero || cachedRoot != bypassedRoot))
+                return;
+
+            _vertical.Reset();
+            _horizontal.Reset();
+            DisarmTimer();
+            _cachedSettings = null;
+            _cachedHwnd = IntPtr.Zero;
+            _cachedIsElevated = false;
+            ResetEwma();
+            _sessionGeneration++;
+        }
+    }
+
     public void Dispose()
     {
         Stop();
@@ -308,5 +379,6 @@ public sealed class ScrollCoordinator : IDisposable
             _tickTimer = null;
         }
         _hook.MouseWheel -= OnMouseWheel;
+        _profiles.SettingsChanged -= OnSettingsChanged;
     }
 }

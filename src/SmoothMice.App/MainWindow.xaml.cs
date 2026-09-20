@@ -163,6 +163,21 @@ public partial class MainWindow
                 or nameof(MainViewModel.SelectedProfile)))
             return;
 
+        if (e.PropertyName == nameof(MainViewModel.SelectedProfile) &&
+            sender is MainViewModel vm)
+        {
+            _profileSuppress = true;
+            try
+            {
+                ProfileCombo.SelectedItem = vm.SelectedProfile?.DisplayName;
+                SyncPresetCombo(vm);
+            }
+            finally
+            {
+                _profileSuppress = false;
+            }
+        }
+
         RequestSnapToContentAfterLayout();
     }
 
@@ -325,4 +340,7 @@ public partial class MainWindow
 
     private void MonitorScroll_OnClick(object sender, RoutedEventArgs e) =>
         ((App)Application.Current).ShowScrollMonitor(this);
+
+    private void FreeSpinInertiaSuppression_OnClick(object sender, RoutedEventArgs e) =>
+        ((App)Application.Current).ShowFreeSpinInertiaSuppression(this);
 }

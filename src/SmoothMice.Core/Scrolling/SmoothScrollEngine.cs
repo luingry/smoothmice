@@ -23,6 +23,12 @@ namespace SmoothMice.Core.Scrolling;
 /// </summary>
 public sealed class SmoothScrollEngine
 {
+    // A FreeSpin wheel can report physical pulses much faster than Windows can render them.
+    // Keep enough motion for a very fast continuous scroll, but never let a pathological burst
+    // turn into an unbounded post-scroll backlog or an out-of-range injection delta.
+    public const int MaximumPendingDeltaUnits = 48_000;
+    public const int MaximumDeltaPerTick = 1_920;
+
     private double _remaining;   // signed units still to emit
     private double _speed;       // [0, 1] ease-in ramp factor
     private double _fracAccum;   // fractional carry for integer output
@@ -44,6 +50,8 @@ public sealed class SmoothScrollEngine
         if (rawDelta == 0) return;
 
         var units = rawDelta * ScrollMath.StepScale(settings.StepSizePx) * accel;
+        if (double.IsNaN(units) || double.IsInfinity(units))
+            return;
 
         if (_remaining != 0.0 && Math.Sign(_remaining) != Math.Sign(units))
         {
@@ -59,7 +67,7 @@ public sealed class SmoothScrollEngine
             _speed = 0.3;
         }
 
-        _remaining += units;
+        _remaining = Clamp(_remaining + units, -MaximumPendingDeltaUnits, MaximumPendingDeltaUnits);
     }
 
     /// <summary>Advance animation by one tick; returns signed wheel-delta units to inject.</summary>
@@ -83,8 +91,12 @@ public sealed class SmoothScrollEngine
         // Advance speed toward 1.0 (ease-in envelope).
         _speed += (1.0 - _speed) * ramp;
 
-        // Emit fraction of remaining, scaled by current speed.
-        var delta = _remaining * lerp * _speed;
+        // Emit a bounded fraction of remaining. The cap is applied before subtracting so
+        // un-emitted motion stays queued instead of overflowing the fractional accumulator.
+        var delta = Clamp(
+            _remaining * lerp * _speed,
+            -MaximumDeltaPerTick,
+            MaximumDeltaPerTick);
 
         _remaining -= delta;
 
@@ -130,4 +142,7 @@ public sealed class SmoothScrollEngine
         // Ramp rate so speed reaches 95 % within accelTicks ticks.
         return 1.0 - Math.Pow(0.05, 1.0 / accelTicks);
     }
+
+    private static double Clamp(double value, double minimum, double maximum) =>
+        value < minimum ? minimum : value > maximum ? maximum : value;
 }

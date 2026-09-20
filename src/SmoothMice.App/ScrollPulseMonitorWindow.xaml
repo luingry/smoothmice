@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:SmoothMice.App.ViewModels"
-        Title="Monitorar scroll · SmoothMice"
+        Title="Scroll logs · SmoothMice"
         Width="680"
         Height="520"
         MinWidth="560"
@@ -44,16 +44,16 @@
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0" LastChildFill="False">
-            <Button Content="Limpar"
+            <Button Content="Clear"
                     DockPanel.Dock="Right"
                     Style="{StaticResource SecondaryButton}"
                     Padding="10,5"
                     Click="Clear_OnClick"
-                    ToolTip="Zera os pulsos desta visualização para iniciar um teste controlado"
-                    AutomationProperties.Name="Limpar monitor de scroll"/>
+                    ToolTip="Clears the pulses in this view to start a controlled test"
+                    AutomationProperties.Name="Clear scroll logs"/>
             <StackPanel>
-                <TextBlock Text="Monitor de scroll" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
-                <TextBlock Text="Pulsos físicos antes da suavização" Margin="0,2,0,0" FontSize="11" Foreground="{StaticResource Brush.Muted}"/>
+                <TextBlock Text="Scroll logs" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
+                <TextBlock Text="Physical pulses before smoothing" Margin="0,2,0,0" FontSize="11" Foreground="{StaticResource Brush.Muted}"/>
             </StackPanel>
         </DockPanel>
 
@@ -74,19 +74,19 @@
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0">
                 <TextBlock Text="{Binding TotalText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
-                <TextBlock Text="capturados" Style="{StaticResource MonitorLabel}"/>
+                <TextBlock Text="captured" Style="{StaticResource MonitorLabel}"/>
             </StackPanel>
             <StackPanel Grid.Column="1">
                 <TextBlock Text="{Binding AxisText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
-                <TextBlock Text="por eixo" Style="{StaticResource MonitorLabel}"/>
+                <TextBlock Text="by axis" Style="{StaticResource MonitorLabel}"/>
             </StackPanel>
             <StackPanel Grid.Column="2">
                 <TextBlock Text="{Binding BurstText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
-                <TextBlock Text="pulsos em rajada (120 ms)" Style="{StaticResource MonitorLabel}"/>
+                <TextBlock Text="burst pulses (120 ms)" Style="{StaticResource MonitorLabel}"/>
             </StackPanel>
             <StackPanel Grid.Column="3">
                 <TextBlock Text="{Binding ReversalText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Brush.Text}"/>
-                <TextBlock Text="até 150 ms" Style="{StaticResource MonitorLabel}"/>
+                <TextBlock Text="within 150 ms" Style="{StaticResource MonitorLabel}"/>
             </StackPanel>
         </Grid>
 
@@ -99,20 +99,20 @@
                       ScrollViewer.CanContentScroll="True"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
-                      AutomationProperties.Name="Pulsos físicos de scroll">
+                      AutomationProperties.Name="Physical scroll pulses">
                 <ListView.View>
                     <GridView AllowsColumnReorder="False">
-                        <GridViewColumn Header="TEMPO" Width="82" DisplayMemberBinding="{Binding RelativeTime}"/>
+                        <GridViewColumn Header="TIME" Width="82" DisplayMemberBinding="{Binding RelativeTime}"/>
                         <GridViewColumn Header="UTC" Width="102" DisplayMemberBinding="{Binding UtcTime}"/>
-                        <GridViewColumn Header="EIXO" Width="78" DisplayMemberBinding="{Binding Axis}"/>
-                        <GridViewColumn Header="PULSO" Width="72" DisplayMemberBinding="{Binding DeltaAndDirection}"/>
-                        <GridViewColumn Header="INTERVALO" Width="75" DisplayMemberBinding="{Binding Interval}"/>
-                        <GridViewColumn Header="JANELA" Width="82" DisplayMemberBinding="{Binding BurstWindow}"/>
-                        <GridViewColumn Header="MARCADORES" Width="125" DisplayMemberBinding="{Binding Markers}"/>
+                        <GridViewColumn Header="AXIS" Width="78" DisplayMemberBinding="{Binding Axis}"/>
+                        <GridViewColumn Header="PULSE" Width="72" DisplayMemberBinding="{Binding DeltaAndDirection}"/>
+                        <GridViewColumn Header="INTERVAL" Width="75" DisplayMemberBinding="{Binding Interval}"/>
+                        <GridViewColumn Header="WINDOW" Width="82" DisplayMemberBinding="{Binding BurstWindow}"/>
+                        <GridViewColumn Header="MARKERS" Width="125" DisplayMemberBinding="{Binding Markers}"/>
                     </GridView>
                 </ListView.View>
             </ListView>
-            <TextBlock Text="Gire a roda para começar"
+            <TextBlock Text="Turn the wheel to start"
                        Visibility="{Binding EmptyStateVisible, Converter={StaticResource BoolToVis}}"
                        IsHitTestVisible="False"
                        HorizontalAlignment="Center"

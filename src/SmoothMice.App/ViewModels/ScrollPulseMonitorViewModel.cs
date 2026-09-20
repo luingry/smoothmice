@@ -20,20 +20,20 @@ public sealed class ScrollPulseMonitorViewModel : ViewModelBase
         get
         {
             if (!HasRows)
-                return "Gire a roda para começar.";
+                return "Turn the wheel to start.";
 
             var discarded = _session.DiscardedRows + _ingressDropped;
             return discarded == 0
-                ? "Capturando pulsos físicos em tempo real. Mantendo até 500 dos mais recentes."
-                : $"Capturando em tempo real. {discarded:N0} pulsos antigos ou em excesso foram descartados.";
+                ? "Capturing physical pulses live. Keeping the latest 500."
+                : $"Capturing live. {discarded:N0} old or excess pulses were discarded.";
         }
     }
 
-    public string TotalText => $"{_session.TotalPulses:N0} pulsos";
+    public string TotalText => $"{_session.TotalPulses:N0} pulses";
     public string AxisText => $"{_session.VerticalPulses:N0} vertical · {_session.HorizontalPulses:N0} horizontal";
     // ShortBursts counts marked pulses, not distinct burst episodes.
-    public string BurstText => $"{_session.ShortBursts:N0} marcados";
-    public string ReversalText => $"{_session.RapidReversals:N0} reversões";
+    public string BurstText => $"{_session.ShortBursts:N0} marked";
+    public string ReversalText => $"{_session.RapidReversals:N0} reversals";
 
     public void Add(ScrollPulseDiagnosticPulse pulse)
     {
@@ -110,9 +110,9 @@ public sealed class ScrollPulseMonitorRow
     private static string FormatMarkers(ScrollPulseDiagnosticAnalysis analysis)
     {
         if (analysis.IsShortBurst && analysis.IsRapidReversal)
-            return "Rajada · Reversão";
+            return "Burst · Reversal";
         if (analysis.IsShortBurst)
-            return "Rajada";
-        return analysis.IsRapidReversal ? "Reversão" : "";
+            return "Burst";
+        return analysis.IsRapidReversal ? "Reversal" : "";
     }
 }

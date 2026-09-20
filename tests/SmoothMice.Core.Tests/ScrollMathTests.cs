@@ -190,4 +190,34 @@ public class ScrollMathTests
         Assert.True(firstNoEase > firstEase,
             $"No-easing first tick ({firstNoEase}) should exceed easing ({firstEase})");
     }
+
+    [Fact]
+    public void Engine_bounds_a_freespin_burst_without_invalid_or_backlogged_tick_deltas()
+    {
+        const int maximumPendingDeltaUnits = 48_000;
+        const int maximumDeltaPerTick = 1_920;
+        var settings = new ScrollProfileSettings
+        {
+            StepSizePx = 80,
+            AnimationTimeMs = 150,
+            AnimationEasing = false,
+        };
+        var engine = new SmoothScrollEngine();
+
+        // 10,000 one-millisecond pulses represent a much larger burst than a physical
+        // FreeSpin can deliver to the 4 ms animation loop. It must remain bounded.
+        for (var i = 0; i < 10_000; i++)
+            engine.PushPhysicalDelta(120, settings, accel: 3.5, nowMs: i);
+
+        var total = 0;
+        for (var tick = 0; tick < 2_000 && !engine.IsQuiet(); tick++)
+        {
+            var delta = engine.Tick(tick * 4L, settings);
+            Assert.InRange(delta, -maximumDeltaPerTick, maximumDeltaPerTick);
+            total += Math.Abs(delta);
+        }
+
+        Assert.True(engine.IsQuiet());
+        Assert.InRange(total, 0, maximumPendingDeltaUnits + maximumDeltaPerTick);
+    }
 }

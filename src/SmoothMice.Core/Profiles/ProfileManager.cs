@@ -1,5 +1,6 @@
 using SmoothMice.Core.Config;
 using SmoothMice.Core.Updates;
+using SmoothMice.Core.Diagnostics;
 
 namespace SmoothMice.Core.Profiles;
 
@@ -15,6 +16,16 @@ public sealed class ProfileManager
     }
 
     public event EventHandler? SettingsChanged;
+
+    /// <summary>Global, fail-open preference used before resolving a smoothing profile.</summary>
+    public bool DoNotActivateInGames
+    {
+        get
+        {
+            lock (_lock)
+                return _settings.DoNotActivateInGames;
+        }
+    }
 
     public AppSettings Snapshot
     {
@@ -53,6 +64,37 @@ public sealed class ProfileManager
     {
         lock (_lock)
             _settings.LastUpdateCheckUtc = utc;
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetFreeSpinInertiaSuppressionEnabled(bool enabled)
+    {
+        lock (_lock)
+            _settings.FreeSpinInertiaSuppressionEnabled = enabled;
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetDoNotActivateInGames(bool enabled)
+    {
+        lock (_lock)
+            _settings.DoNotActivateInGames = enabled;
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetFreeSpinCalibrationTarget(FreeSpinCalibrationPhase phase, int target)
+    {
+        lock (_lock)
+        {
+            target = AppSettings.ClampCalibrationTarget(target);
+            switch (phase)
+            {
+                case FreeSpinCalibrationPhase.Lift: _settings.FreeSpinLiftTarget = target; break;
+                case FreeSpinCalibrationPhase.Landing: _settings.FreeSpinLandingTarget = target; break;
+                case FreeSpinCalibrationPhase.Reposition: _settings.FreeSpinRepositionTarget = target; break;
+                case FreeSpinCalibrationPhase.LegitimateScroll: _settings.FreeSpinLegitimateScrollTarget = target; break;
+                default: throw new ArgumentOutOfRangeException(nameof(phase));
+            }
+        }
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 

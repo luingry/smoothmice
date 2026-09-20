@@ -108,10 +108,17 @@
                 BorderThickness="1"
                 Padding="12,8"
                 Margin="0,0,0,8">
-            <CheckBox Content="Auto start on login"
-                      IsChecked="{Binding AutoStartOnLogin, Mode=TwoWay}"
-                      Checked="PersistCheck_OnChanged"
-                      Unchecked="PersistCheck_OnChanged"/>
+            <StackPanel>
+                <CheckBox Content="Auto start on login"
+                          IsChecked="{Binding AutoStartOnLogin, Mode=TwoWay}"
+                          Checked="PersistCheck_OnChanged"
+                          Unchecked="PersistCheck_OnChanged"/>
+                <CheckBox Content="Do not activate in games"
+                          Margin="0,4,0,0"
+                          ToolTip="Lets the mouse wheel pass through natively in conservatively detected games"
+                          AutomationProperties.Name="Do not activate in games"
+                          IsChecked="{Binding DoNotActivateInGames, Mode=TwoWay}"/>
+            </StackPanel>
         </Border>
 
         <Border Grid.Row="2"
@@ -121,9 +128,33 @@
                 BorderThickness="1"
                 Padding="10,6"
                 Margin="0,0,0,8">
-            <ComboBox x:Name="ProfileCombo"
-                      Margin="0"
-                      SelectionChanged="ProfileCombo_OnSelectionChanged"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <ComboBox x:Name="ProfileCombo"
+                          Grid.Column="0"
+                          Margin="0"
+                          SelectionChanged="ProfileCombo_OnSelectionChanged"/>
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Margin="6,0,0,0">
+                    <Button Content="+"
+                            Width="32"
+                            Height="28"
+                            Margin="0,0,6,0"
+                            Style="{StaticResource SecondaryButton}"
+                            Command="{Binding AddProfileCommand}"
+                            ToolTip="Add profile"/>
+                    <Button Content="—"
+                            Width="32"
+                            Height="28"
+                            Style="{StaticResource SecondaryButton}"
+                            Command="{Binding RemoveProfileCommand}"
+                            ToolTip="Remove profile"/>
+                </StackPanel>
+            </Grid>
         </Border>
 
         <Border Grid.Row="3"
@@ -275,33 +306,25 @@
             </StackPanel>
         </Border>
 
-        <DockPanel Grid.Row="6" LastChildFill="False" Margin="0,8,0,0">
-            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                <Button Content="Reset All"
-                        Style="{StaticResource SecondaryButton}"
-                        Command="{Binding ResetAllCommand}"/>
-                <Button Content="Monitorar scroll"
-                        Margin="6,0,0,0"
-                        Style="{StaticResource SecondaryButton}"
-                        Click="MonitorScroll_OnClick"
-                        ToolTip="Abre um monitor ao vivo dos pulsos físicos da roda"
-                        AutomationProperties.Name="Monitorar scroll"/>
-            </StackPanel>
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button Content="+"
-                        Width="32"
-                        Height="28"
-                        Margin="0,0,6,0"
-                        Style="{StaticResource SecondaryButton}"
-                        Command="{Binding AddProfileCommand}"
-                        ToolTip="Add profile"/>
-                <Button Content="—"
-                        Width="32"
-                        Height="28"
-                        Style="{StaticResource SecondaryButton}"
-                        Command="{Binding RemoveProfileCommand}"
-                        ToolTip="Remove profile"/>
-            </StackPanel>
-        </DockPanel>
+        <StackPanel Grid.Row="6" Margin="0,8,0,0">
+            <Button Content="Free-Spin Inertia Suppression (beta)"
+                    HorizontalAlignment="Stretch"
+                    Style="{StaticResource SecondaryButton}"
+                    Click="FreeSpinInertiaSuppression_OnClick"
+                    ToolTip="Opens the Free-Spin wheel-event preparation module"
+                    AutomationProperties.Name="Free-Spin Inertia Suppression (beta)"/>
+            <Button Content="Scroll logs"
+                    Margin="0,6,0,0"
+                    HorizontalAlignment="Stretch"
+                    Style="{StaticResource SecondaryButton}"
+                    Click="MonitorScroll_OnClick"
+                    ToolTip="Opens a live monitor of physical wheel pulses"
+                    AutomationProperties.Name="Scroll logs"/>
+            <Button Content="Reset All"
+                    Margin="0,6,0,0"
+                    HorizontalAlignment="Stretch"
+                    Style="{StaticResource SecondaryButton}"
+                    Command="{Binding ResetAllCommand}"/>
+        </StackPanel>
     </Grid>
 </Window>

@@ -8,6 +8,15 @@ public static class NativeMethods
     public const int WhMouseLl = 14;
     public const int WmMousewheel = 0x020A;
     public const int WmMousehwheel = 0x020E;
+    public const int WmMousemove = 0x0200;
+    public const int WmLbuttondown = 0x0201;
+    public const int WmLbuttonup = 0x0202;
+    public const int WmRbuttondown = 0x0204;
+    public const int WmRbuttonup = 0x0205;
+    public const int WmMbuttondown = 0x0207;
+    public const int WmMbuttonup = 0x0208;
+    public const int WmXbuttondown = 0x020B;
+    public const int WmXbuttonup = 0x020C;
 
     public const int  VkShift   = 0x10;
     public const int  VkControl = 0x11;
@@ -41,6 +50,46 @@ public static class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
+
+    /// <summary>Callback used by <see cref="EnumWindows"/> for each top-level window.</summary>
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    /// <summary>Enumerates top-level windows on the current desktop.</summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    public const uint MonitorDefaultToNearest = 2;
+    public const int GwlStyle = -16;
+    public const uint WsCaption = 0x00C00000;
+    public const uint WsThickFrame = 0x00040000;
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr GetWindowLongPtr64(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+    private static extern int GetWindowLong32(IntPtr hWnd, int nIndex);
+
+    public static IntPtr GetWindowStyle(IntPtr hwnd) => IntPtr.Size == 8
+        ? GetWindowLongPtr64(hwnd, GwlStyle)
+        : new IntPtr(GetWindowLong32(hwnd, GwlStyle));
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
@@ -115,6 +164,24 @@ public static class NativeMethods
     {
         public int X;
         public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
     }
 
     [StructLayout(LayoutKind.Sequential)]
