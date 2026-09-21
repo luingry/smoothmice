@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:SmoothMice.App.ViewModels"
         Title="Scroll logs · SmoothMice"
-        Width="680"
+        Width="748"
         Height="520"
-        MinWidth="560"
+        MinWidth="620"
         MinHeight="400"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource Brush.Surface}"
@@ -22,10 +22,54 @@
             <Setter Property="Foreground" Value="{DynamicResource Brush.Muted}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
+        <!-- Every GridViewColumn cell is wrapped in this template so columns get a visible
+             divider between them; DisplayMemberBinding alone only separates data by header,
+             with no visual delimiter between adjacent cell values. -->
+        <Style x:Key="MonitorCell" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,0"/>
+            <Setter Property="Padding" Value="6,0,6,0"/>
+        </Style>
+        <Style x:Key="MonitorCellText" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <!-- The global App.xaml ListViewItem template swaps in a plain ContentPresenter, which
+             renders a bound item via ToString() — fine for plain lists, but it means a GridView's
+             columns/CellTemplates are never consulted. A GridView row needs a
+             GridViewRowPresenter in its template to lay cells out per GridViewColumn, so this
+             window overrides the template locally rather than changing the shared style (which
+             would break every other, non-GridView ListView in the app). -->
         <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
             <Setter Property="Padding" Value="5,4"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="ToolTip" Value="{Binding Markers}"/>
+            <Setter Property="AutomationProperties.Name" Value="{Binding}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="ItemRoot" Padding="{TemplateBinding Padding}" Background="Transparent">
+                            <GridViewRowPresenter Content="{TemplateBinding Content}"
+                                                   Columns="{TemplateBinding GridView.ColumnCollection}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemRoot" Property="Background" Value="{DynamicResource Brush.SelectedSurface}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemRoot" Property="Background" Value="{DynamicResource Brush.CardHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="ItemRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+                                <Setter TargetName="ItemRoot" Property="BorderThickness" Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsAnomalous}" Value="True">
                     <Setter Property="Background" Value="{DynamicResource Brush.WarningSurface}"/>
@@ -57,13 +101,19 @@
             </StackPanel>
         </DockPanel>
 
-        <TextBlock Grid.Row="1"
-                   Text="{Binding StatusText}"
-                   Margin="0,10,0,8"
-                   FontSize="11"
-                   Foreground="{DynamicResource Brush.Muted}"
-                   TextWrapping="Wrap"
-                   AutomationProperties.LiveSetting="Polite"/>
+        <StackPanel Grid.Row="1" Margin="0,10,0,8">
+            <TextBlock Text="{Binding StatusText}"
+                       FontSize="11"
+                       Foreground="{DynamicResource Brush.Muted}"
+                       TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite"/>
+            <TextBlock Text="{Binding TickDiagnosticsText}"
+                       Margin="0,2,0,0"
+                       FontSize="11"
+                       Foreground="{DynamicResource Brush.Muted}"
+                       TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite"/>
+        </StackPanel>
 
         <Grid Grid.Row="2" Margin="0,0,0,9">
             <Grid.ColumnDefinitions>
@@ -102,13 +152,78 @@
                       AutomationProperties.Name="Physical scroll pulses">
                 <ListView.View>
                     <GridView AllowsColumnReorder="False">
-                        <GridViewColumn Header="TIME" Width="82" DisplayMemberBinding="{Binding RelativeTime}"/>
-                        <GridViewColumn Header="UTC" Width="102" DisplayMemberBinding="{Binding UtcTime}"/>
-                        <GridViewColumn Header="AXIS" Width="78" DisplayMemberBinding="{Binding Axis}"/>
-                        <GridViewColumn Header="PULSE" Width="72" DisplayMemberBinding="{Binding DeltaAndDirection}"/>
-                        <GridViewColumn Header="INTERVAL" Width="75" DisplayMemberBinding="{Binding Interval}"/>
-                        <GridViewColumn Header="WINDOW" Width="82" DisplayMemberBinding="{Binding BurstWindow}"/>
-                        <GridViewColumn Header="MARKERS" Width="125" DisplayMemberBinding="{Binding Markers}"/>
+                        <GridViewColumn Header="TIME" Width="82">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource MonitorCell}">
+                                        <TextBlock Style="{StaticResource MonitorCellText}" Text="{Binding RelativeTime}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="UTC" Width="102">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource MonitorCell}">
+                                        <TextBlock Style="{StaticResource MonitorCellText}" Text="{Binding UtcTime}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="AXIS" Width="72">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource MonitorCell}">
+                                        <TextBlock Style="{StaticResource MonitorCellText}" Text="{Binding Axis}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="PULSE" Width="68">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource MonitorCell}">
+                                        <TextBlock Style="{StaticResource MonitorCellText}" Text="{Binding DeltaAndDirection}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="PIXELS" Width="68">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource MonitorCell}">
+                                        <TextBlock Style="{StaticResource MonitorCellText}" Text="{Binding PixelDelta}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="INTERVAL" Width="75">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource MonitorCell}">
+                                        <TextBlock Style="{StaticResource MonitorCellText}" Text="{Binding Interval}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="WINDOW" Width="82">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource MonitorCell}">
+                                        <TextBlock Style="{StaticResource MonitorCellText}" Text="{Binding BurstWindow}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="MARKERS" Width="115">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource MonitorCell}" BorderThickness="0">
+                                        <TextBlock Style="{StaticResource MonitorCellText}" Text="{Binding Markers}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
                     </GridView>
                 </ListView.View>
             </ListView>

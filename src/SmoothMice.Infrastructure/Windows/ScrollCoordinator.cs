@@ -40,6 +40,17 @@ public sealed class ScrollCoordinator : IDisposable
     private bool _timerPeriodSet;
     private long _sessionGeneration;
 
+    // Diagnostics only — read by the Scroll logs window to help tell apart "the engine math
+    // emitted a small delta" from "a scheduled tick never ran at all" (e.g. the reentrancy guard
+    // below skipping it because the previous tick was still busy with a slow SendInput/PostMessage
+    // call). Incremented on the timer thread, read from the UI thread — Interlocked/Volatile only.
+    private int _diagTicksScheduled;
+    private int _diagTicksSkippedReentrancy;
+
+    public (int scheduled, int skippedReentrancy) GetTickDiagnostics() =>
+        (System.Threading.Volatile.Read(ref _diagTicksScheduled),
+         System.Threading.Volatile.Read(ref _diagTicksSkippedReentrancy));
+
     // Cached state for the current scroll session — written in OnMouseWheel under _gate,
     // read in TickCore under _gate, cleared when engines go quiet.
     //
@@ -143,6 +154,12 @@ public sealed class ScrollCoordinator : IDisposable
 
     private void OnMouseWheel(object? sender, MouseWheelHookEventArgs e)
     {
+        // MouseWheel is multicast. The Free-Spin detector subscribes before this coordinator
+        // and may already have consumed a high-confidence physical event. Do not resolve a
+        // target, queue motion, or inject a replacement after that decision.
+        if (e.Handled)
+            return;
+
         // Resolve against the window UNDER THE CURSOR (not the foreground window).
         var hwndTarget = NativeMethods.WindowFromPoint(e.ScreenPoint);
 
@@ -183,7 +200,7 @@ public sealed class ScrollCoordinator : IDisposable
         {
             var wasQuiet = _vertical.IsQuiet() && _horizontal.IsQuiet();
 
-            UpdateEwma(now, settings);
+            UpdateEwma(now, settings, wasQuiet);
 
             var accel = ScrollMath.AccelerationMultiplier(
                 _smoothedIntervalMs,
@@ -216,10 +233,15 @@ public sealed class ScrollCoordinator : IDisposable
 
     private void Tick()
     {
+        System.Threading.Interlocked.Increment(ref _diagTicksScheduled);
+
         // Reentrancy guard: if the previous tick is still running (e.g. due to a slow
         // SendInput call), skip this invocation instead of letting callbacks pile up.
         if (System.Threading.Interlocked.CompareExchange(ref _ticking, 1, 0) != 0)
+        {
+            System.Threading.Interlocked.Increment(ref _diagTicksSkippedReentrancy);
             return;
+        }
         try
         {
             TickCore();
@@ -315,22 +337,10 @@ public sealed class ScrollCoordinator : IDisposable
 
     // ── EWMA — must be called under _gate ───────────────────────────────────
 
-    private void UpdateEwma(long nowMs, ScrollProfileSettings settings)
+    private void UpdateEwma(long nowMs, ScrollProfileSettings settings, bool wasQuiet)
     {
-        const double alpha         = 0.55;
-        const double maxIntervalMs = 1200.0;
-        const double resetPauseMs  = 1500.0;
-
-        if (_lastEventMs < 0 || nowMs - _lastEventMs >= resetPauseMs)
-        {
-            _smoothedIntervalMs = settings.AccelerationDeltaMs;
-        }
-        else
-        {
-            var actual = Math.Min(nowMs - _lastEventMs, maxIntervalMs);
-            _smoothedIntervalMs = alpha * actual + (1.0 - alpha) * _smoothedIntervalMs;
-        }
-
+        _smoothedIntervalMs = ScrollMath.UpdateSmoothedInterval(
+            _smoothedIntervalMs, _lastEventMs, nowMs, wasQuiet, settings.AccelerationDeltaMs);
         _lastEventMs = nowMs;
     }
 

@@ -3,23 +3,23 @@ using SmoothMice.Core.Config;
 namespace SmoothMice.Core.Scrolling;
 
 /// <summary>
-/// Velocity-lerp smooth scroll engine.
+/// Pulse-queue smooth scroll engine — a port of Balazs Galambosi's MIT-licensed SmoothScroll
+/// (smoothscroll.js) model, whose easing curve is credited to Michael Herf ("Stopping",
+/// stereopsis.com). Re-implemented from the public algorithm description, not decompiled.
 ///
-/// State: a single <c>_remaining</c> scalar (signed units still to emit) plus a
-/// <c>_speed</c> ramp factor [0, 1] that provides the ease-in envelope.
+/// Every physical wheel notch becomes its own independent queue item with its own start
+/// timestamp and total distance. Each tick, every item computes its progress from REAL elapsed
+/// time independently, and their contributions are SUMMED (superposition). This replaces an
+/// earlier single-shared-state model (one scalar "remaining" plus one persistent "speed" ramp)
+/// that was structurally history-dependent: what a new notch emitted on its first tick depended
+/// on the ramp state left behind by whatever had been animating before it, causing visible
+/// jumps/spikes when a notch landed mid-animation. A pulse queue is linear and time-invariant —
+/// each item always delivers exactly its own distance over exactly its own duration, regardless
+/// of what else is in flight, so there is nothing for a new item to inherit.
 ///
-/// Each tick emits <c>remaining × lerpFactor × speed</c> units, then:
-///   • <c>speed</c>  ramps toward 1.0  → smooth ease-in over the first ~20–30 ms
-///   • remaining shrinks exponentially  → natural ease-out tail
-///
-/// Advantages over the previous step-queue model:
-///   • Multiple rapid events accumulate in <c>_remaining</c> naturally — no
-///     overlapping step curves that produce mid-animation velocity "bumps".
-///   • Ease-in and ease-out are applied to the combined motion, not per-event.
-///   • C¹ and C² continuous: no jerk at the inflection point.
-///   • Simpler state: one scalar instead of a list of structs.
-///   • Settings changes (AnimationTimeMs, TailToHeadRatio) take effect
-///     immediately on the next tick.
+/// There must be NO "merge", "nudge", "reset speed", or "negligible tail" heuristics here — that
+/// entire class of bug is what superposition is designed to make structurally impossible, not
+/// something to re-approximate with a threshold.
 /// </summary>
 public sealed class SmoothScrollEngine
 {
@@ -29,22 +29,36 @@ public sealed class SmoothScrollEngine
     public const int MaximumPendingDeltaUnits = 48_000;
     public const int MaximumDeltaPerTick = 1_920;
 
-    private double _remaining;   // signed units still to emit
-    private double _speed;       // [0, 1] ease-in ramp factor
-    private double _fracAccum;   // fractional carry for integer output
+    // Bound on queued pulses. A FreeSpin burst can enqueue far faster than the 4 ms tick can
+    // drain; each item is nearly weightless once distance/emitted is small, so when full we fold
+    // the OLDEST item's un-emitted remainder into the next-oldest item's distance and drop it —
+    // both are old, both are nearly spent, and the resulting single-tick contribution error is
+    // negligible relative to MaximumDeltaPerTick.
+    private const int MaximumQueueLength = 256;
+
+    private readonly List<PulseItem> _queue = new();
+
+    // Reused across ticks. Tick runs on the 4 ms timer thread in a latency-sensitive input path,
+    // so it must not allocate; the queue can never exceed MaximumQueueLength, so one fixed buffer
+    // covers every tick.
+    private readonly double[] _tickTargets = new double[MaximumQueueLength];
+
+    private double _fracAccum; // fractional carry for integer output, accumulated once per tick
+
+    private struct PulseItem
+    {
+        public double Distance; // total signed units this pulse will deliver
+        public long StartMs;
+        public double Emitted; // signed units already delivered (== Distance when t >= 1)
+    }
 
     public void Reset()
     {
-        _remaining = 0;
-        _speed     = 0;
+        _queue.Clear();
         _fracAccum = 0;
     }
 
-    /// <summary>
-    /// Feed a physical wheel delta.
-    /// <paramref name="nowMs"/> is accepted for API compatibility but not used
-    /// in this model (timing is implicit via tick cadence).
-    /// </summary>
+    /// <summary>Feed a physical wheel delta. Enqueues an independent pulse item.</summary>
     public void PushPhysicalDelta(int rawDelta, ScrollProfileSettings settings, double accel, long nowMs)
     {
         if (rawDelta == 0) return;
@@ -53,94 +67,140 @@ public sealed class SmoothScrollEngine
         if (double.IsNaN(units) || double.IsInfinity(units))
             return;
 
-        if (_remaining != 0.0 && Math.Sign(_remaining) != Math.Sign(units))
+        var pendingSign = PendingSign();
+        if (pendingSign != 0 && Math.Sign(units) != pendingSign)
         {
-            // Direction reversal: discard old motion and start fresh.
-            _remaining = 0;
+            // Direction reversal: discard all queued motion and start fresh — matches the
+            // previous engine's behavior and SmoothScroll's own directionCheck.
+            _queue.Clear();
             _fracAccum = 0;
-            _speed     = 0;
-        }
-        else if (_remaining != 0.0 && _speed < 0.3)
-        {
-            // Mid-animation but nearly stopped: nudge speed up so new input
-            // feels responsive instead of sluggish.
-            _speed = 0.3;
         }
 
-        _remaining = Clamp(_remaining + units, -MaximumPendingDeltaUnits, MaximumPendingDeltaUnits);
+        var pending = PendingDistance();
+        var budget = MaximumPendingDeltaUnits - pending;
+        if (budget <= 0)
+            return; // already at the pending cap; drop this push rather than overflow it
+
+        if (Math.Abs(units) > budget)
+            units = budget * Math.Sign(units);
+
+        if (_queue.Count >= MaximumQueueLength)
+        {
+            // Fold the oldest (nearly-spent) item's remaining distance into the next-oldest item
+            // so total pending distance is preserved, then drop the oldest slot to make room.
+            var oldest = _queue[0];
+            var oldestRemaining = oldest.Distance - oldest.Emitted;
+            var next = _queue[1];
+            next.Distance += oldestRemaining;
+            _queue[1] = next;
+            _queue.RemoveAt(0);
+        }
+
+        _queue.Add(new PulseItem { Distance = units, StartMs = nowMs, Emitted = 0.0 });
     }
 
-    /// <summary>Advance animation by one tick; returns signed wheel-delta units to inject.</summary>
+    /// <summary>Advance animation by one tick using real elapsed time; returns signed wheel-delta units to inject.</summary>
     public int Tick(long nowMs, ScrollProfileSettings settings)
     {
-        if (Math.Abs(_remaining) < 0.01) return 0;
+        if (_queue.Count == 0) return 0;
 
-        var lerp = LerpFactor(settings.AnimationTimeMs);
+        var animationTimeMs = Math.Max(1, settings.AnimationTimeMs);
+        // Acceleration phase occupies t < 1/scale, i.e. real duration animationTimeMs/scale, so an
+        // explicit attack time is just the inverse: scale = animationTime/attack. Attack is capped
+        // at animationTimeMs so scale never drops below 1 — below 1 the curve would be truncated
+        // mid-acceleration and end at peak velocity instead of easing in.
+        var pulseScale = settings.AttackTimeMs > 0
+            ? Math.Max(1.0, animationTimeMs / (double)Math.Min(settings.AttackTimeMs, animationTimeMs))
+            : 1.0 + Math.Min(Math.Max(settings.TailToHeadRatio, 0.5), 12.0);
+        var useEasing = settings.AnimationEasing;
 
-        double ramp;
-        if (settings.AnimationEasing)
+        // First pass: each item's contribution is purely a function of real elapsed time,
+        // independent of every other item (superposition) — compute the ideal, uncapped
+        // per-item contribution and sum it.
+        var count = _queue.Count;
+        var idealTargets = _tickTargets;
+        double rawSum = 0;
+        for (var i = 0; i < count; i++)
         {
-            var tailToHead = Math.Min(Math.Max(settings.TailToHeadRatio, 0.5), 12.0);
-            ramp = SpeedRampFactor(lerp, tailToHead);
-        }
-        else
-        {
-            ramp = 1.0; // no ease-in — only the natural exponential ease-out
-        }
+            var item = _queue[i];
+            var t = (nowMs - item.StartMs) / (double)animationTimeMs;
+            if (t < 0) t = 0;
 
-        // Advance speed toward 1.0 (ease-in envelope).
-        _speed += (1.0 - _speed) * ramp;
+            var target = t >= 1.0
+                ? item.Distance // guarantee the full distance is eventually delivered, no drift
+                : item.Distance * (useEasing ? Pulse(t, pulseScale) : t);
 
-        // Emit a bounded fraction of remaining. The cap is applied before subtracting so
-        // un-emitted motion stays queued instead of overflowing the fractional accumulator.
-        var delta = Clamp(
-            _remaining * lerp * _speed,
-            -MaximumDeltaPerTick,
-            MaximumDeltaPerTick);
-
-        _remaining -= delta;
-
-        // Flush the trailing tail once it's too small to matter.
-        if (Math.Abs(_remaining) < 0.1)
-        {
-            delta     += _remaining;
-            _remaining = 0;
-            _speed     = 0;
+            idealTargets[i] = target;
+            rawSum += target - item.Emitted;
         }
 
-        _fracAccum += delta;
+        // Cap the summed per-tick output. Scale every item's ACTUAL contribution down by the same
+        // factor rather than discarding the excess — each item's Emitted then lags behind its
+        // ideal time-based target, so the shortfall simply reappears as that item's contribution
+        // on a later tick (it isn't removed until Emitted actually reaches Distance). This is the
+        // FreeSpin safety bound; it does not apply on ordinary, unsaturated ticks (scale == 1).
+        var appliedSum = Clamp(rawSum, -MaximumDeltaPerTick, MaximumDeltaPerTick);
+        var scale = rawSum == 0 ? 0 : appliedSum / rawSum;
+
+        for (var i = count - 1; i >= 0; i--)
+        {
+            var item = _queue[i];
+            item.Emitted += (idealTargets[i] - item.Emitted) * scale;
+
+            if (Math.Abs(item.Distance - item.Emitted) < 1e-6)
+                _queue.RemoveAt(i);
+            else
+                _queue[i] = item;
+        }
+
+        _fracAccum += appliedSum;
         var whole = (int)_fracAccum;
         _fracAccum -= whole;
         return whole;
     }
 
-    public bool IsQuiet() => Math.Abs(_remaining) < 0.1;
+    public bool IsQuiet() => _queue.Count == 0;
 
     /// <summary>
-    /// Per-tick lerp factor such that 98 % of <c>_remaining</c> is consumed in
-    /// <paramref name="animTimeMs"/> milliseconds at full speed (4 ms / tick).
+    /// Raw, unnormalized Michael Herf "pulse" easing (see stereopsis.com, "Stopping"). C¹
+    /// continuous with zero derivative at x=0 — every pulse starts at zero velocity, which is
+    /// what makes superposed pulses jump-free at their own onset. Below x=1/scale it's an
+    /// acceleration ramp; above, an exponential "viscous drag" decay tail. Higher scale = shorter
+    /// acceleration phase, longer tail.
     /// </summary>
-    private static double LerpFactor(int animTimeMs)
+    public static double PulseRaw(double x, double scale)
     {
-        var ticks = Math.Max(10, animTimeMs) / 4.0;
-        return 1.0 - Math.Pow(0.02, 1.0 / ticks);
+        x *= scale;
+        if (x < 1.0)
+            return x - (1.0 - Math.Exp(-x));
+
+        var start = Math.Exp(-1.0);
+        x -= 1.0;
+        return start + (1.0 - Math.Exp(-x)) * (1.0 - start);
     }
 
-    /// <summary>
-    /// Speed-ramp rate per tick, chosen so that the ease-in phase occupies
-    /// <c>1 / (1 + tailToHead)</c> of the total animation duration.
-    /// E.g. tailToHead = 3 → 25 % ease-in, 75 % ease-out.
-    /// </summary>
-    private static double SpeedRampFactor(double lerp, double tailToHead)
+    /// <summary>Normalized so Pulse(1) == 1 exactly. <paramref name="t"/> is progress in [0, 1].</summary>
+    public static double Pulse(double t, double scale)
     {
-        // Total ticks for 98 % completion at full speed.
-        var totalTicks = Math.Log(0.02) / Math.Log(1.0 - lerp);
+        if (t <= 0) return 0.0;
+        if (t >= 1) return 1.0;
+        return PulseRaw(t, scale) / PulseRaw(1.0, scale);
+    }
 
-        // Ticks allocated for the acceleration (ease-in) phase.
-        var accelTicks = Math.Max(1.0, totalTicks / (1.0 + tailToHead));
+    private int PendingSign()
+    {
+        double signedSum = 0;
+        foreach (var item in _queue)
+            signedSum += item.Distance - item.Emitted;
+        return Math.Sign(signedSum);
+    }
 
-        // Ramp rate so speed reaches 95 % within accelTicks ticks.
-        return 1.0 - Math.Pow(0.05, 1.0 / accelTicks);
+    private double PendingDistance()
+    {
+        double sum = 0;
+        foreach (var item in _queue)
+            sum += Math.Abs(item.Distance - item.Emitted);
+        return sum;
     }
 
     private static double Clamp(double value, double minimum, double maximum) =>

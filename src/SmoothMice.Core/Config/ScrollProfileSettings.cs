@@ -9,6 +9,13 @@ public sealed class ScrollProfileSettings
     public double TailToHeadRatio { get; set; } = 3;
     public bool AnimationEasing { get; set; } = true;
 
+    /// <summary>
+    /// Ease-in duration, in ms, of each individual pulse's acceleration phase. 0 (the
+    /// deserialization default for profiles saved before this setting existed) means "derive
+    /// from <see cref="TailToHeadRatio"/>", preserving prior behavior unchanged.
+    /// </summary>
+    public int AttackTimeMs { get; set; } = 0;
+
     // ── Acceleration ──────────────────────────────────────────────────────
     /// <summary>
     /// Reference scroll interval in ms. When your actual scroll speed equals

@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using SmoothMice.App.ViewModels;
 using SmoothMice.Core.Diagnostics;
+using SmoothMice.Core.Profiles;
 using SmoothMice.Infrastructure.Windows;
 
 namespace SmoothMice.App;
@@ -18,6 +20,8 @@ public partial class ScrollPulseMonitorWindow : Window
     private const int MaximumDrainPerTick = 128;
 
     private readonly MouseHookService _hook;
+    private readonly ProfileManager _profiles;
+    private readonly ScrollCoordinator _coordinator;
     private readonly BlockingCollection<ScrollPulseDiagnosticPulse> _pending = new(
         new ConcurrentQueue<ScrollPulseDiagnosticPulse>(), QueueCapacity);
     private readonly DispatcherTimer _drainTimer;
@@ -25,9 +29,11 @@ public partial class ScrollPulseMonitorWindow : Window
     private int _ingressDropped;
     private bool _subscribed;
 
-    public ScrollPulseMonitorWindow(MouseHookService hook)
+    public ScrollPulseMonitorWindow(MouseHookService hook, ProfileManager profiles, ScrollCoordinator coordinator)
     {
         _hook = hook;
+        _profiles = profiles;
+        _coordinator = coordinator;
         DataContext = _viewModel;
         InitializeComponent();
         _drainTimer = new DispatcherTimer(DispatcherPriority.Background)
@@ -64,12 +70,19 @@ public partial class ScrollPulseMonitorWindow : Window
     private void DrainPending(object? sender, EventArgs e)
     {
         var drained = 0;
+        // Read once per drain batch (not per pulse) — the global profile's StepSizePx rarely
+        // changes and Snapshot clones the whole settings tree.
+        var stepSizePx = _profiles.Snapshot.Profiles.FirstOrDefault(p => p.IsGlobal)?.Settings.StepSizePx
+            ?? new SmoothMice.Core.Config.ScrollProfileSettings().StepSizePx;
         while (drained < MaximumDrainPerTick && _pending.TryTake(out var pulse))
         {
-            _viewModel.Add(pulse);
+            _viewModel.Add(pulse, stepSizePx);
             drained++;
         }
         _viewModel.SetIngressDropped(System.Threading.Volatile.Read(ref _ingressDropped));
+
+        var (scheduled, skipped) = _coordinator.GetTickDiagnostics();
+        _viewModel.SetTickDiagnostics(scheduled, skipped);
 
         if (drained > 0)
             PulseList.ScrollIntoView(PulseList.Items[PulseList.Items.Count - 1]);

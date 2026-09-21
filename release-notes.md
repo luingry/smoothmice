@@ -4,6 +4,60 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.2.0 — 2026-09-21
+
+### Changed — smoothing engine rewritten as an independent pulse queue
+
+- **Consistency:** every wheel notch now animates as its own independent pulse, with its own start
+  time and distance, and overlapping pulses are summed. Each notch always delivers exactly its
+  full distance over exactly `animationTime`, regardless of what else is animating.
+- **Fixes the jump on resume:** scrolling again while the previous animation was still finishing
+  used to produce a visibly bigger jump. The old engine kept a single shared ease-in ramp, so a
+  new notch inherited whatever ramp state the previous motion had built up — measured as a ~4x
+  first-tick spike purely depending on timing. There is no shared state to inherit any more.
+- **Fixes weak continuous scrolling:** overlapping notches now add up instead of interfering, so
+  sustained scrolling reaches the speed it should.
+- **Dropped frames self-correct:** animation progress is a function of real elapsed time rather
+  than tick count, so a late or skipped 4 ms timer callback no longer loses motion.
+- The easing is the Michael Herf "pulse" curve ("Stopping", stereopsis.com), as used by Balazs
+  Galambosi's MIT-licensed SmoothScroll — reimplemented from the public algorithm.
+
+### New — Start smoothing (ms)
+
+- A per-profile **Start smoothing (ms, 0 = auto)** field sets the ease-in duration of each pulse
+  directly, instead of only indirectly through Tail / head ratio. `0` keeps the previous
+  behaviour, so existing profiles are unchanged. Requires Animation easing to be on.
+
+### Changed — acceleration no longer shrinks slow scrolling
+
+- The acceleration multiplier used to fall as low as 0.10x, shrinking slower, evenly paced
+  scrolling to a fraction of its distance. It now only ever multiplies up, never attenuates.
+
+### Fixed — Scroll logs rendered every row as one string
+
+- The shared `ListViewItem` template used a plain `ContentPresenter`, which silently ignores a
+  `GridView`'s columns and falls back to `ToString()`. Rows now render as real columns with
+  dividers aligned to their headers.
+- Added a **PIXELS** column showing each raw pulse's pixel equivalent, and a live readout of
+  scheduled vs. skipped animation ticks.
+
+### New — Free-Spin inertia detection and calibration
+
+- Detection and calibration for free-spin wheel inertia, with a guided calibration window and
+  per-phase targets. Ships **off by default** (`read-only` detection mode, suppression disabled);
+  existing settings files are unaffected until explicitly enabled.
+
+### UI
+
+- Selects, checkboxes and checkbox labels now show the hand cursor on hover.
+
+> **Upgrade note:** `Animation time (ms)` now means the full duration of each pulse, which is a
+> different meaning from previous versions. Existing values will feel noticeably faster — expect
+> to retune. As a reference point, 300 ms with Tail / head ratio 2 approximates SmoothScroll's
+> default feel.
+
+---
+
 ## 2.1.6 — 2026-09-20
 
 ### New — persistent live dark mode

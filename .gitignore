@@ -4,3 +4,6 @@ obj/
 *.user
 artifacts/
 release/
+
+# Windows reserved device name; a stray "> nul" redirect creates it and git cannot index it
+nul

@@ -29,6 +29,7 @@ public partial class App : Application
     private ScrollPulseLogger? _scrollPulseLogger;
     private MouseHookService? _mouseHook;
     private FreeSpinCalibrationRecorder? _freeSpinRecorder;
+    private FreeSpinDetectionService? _freeSpinDetector;
     private ScrollPulseMonitorWindow? _scrollMonitorWindow;
     private FreeSpinInertiaSuppressionWindow? _freeSpinInertiaSuppressionWindow;
     private TrayIconService? _tray;
@@ -56,6 +57,9 @@ public partial class App : Application
 
         _mouseHook = new MouseHookService(_scrollPulseLogger);
         _freeSpinRecorder = new FreeSpinCalibrationRecorder(_mouseHook);
+        _freeSpinDetector = new FreeSpinDetectionService(_mouseHook);
+        _freeSpinDetector.Configure(loaded.FreeSpinInertiaSuppressionEnabled, loaded.FreeSpinDetectionMode, loaded.FreeSpinSuppressionConfidenceThreshold);
+        _ = _freeSpinDetector.ReloadAsync();
         var injector = new ScrollInjector();
         var apps = new ActiveAppResolver();
         _coordinator = new ScrollCoordinator(_profiles, _mouseHook, injector, apps);
@@ -489,6 +493,8 @@ public partial class App : Application
             _freeSpinInertiaSuppressionWindow = null;
             _freeSpinRecorder?.Dispose();
             _freeSpinRecorder = null;
+            _freeSpinDetector?.Dispose();
+            _freeSpinDetector = null;
             _coordinator?.Dispose();
             _scrollPulseLogger?.Dispose();
             _tray?.Dispose();
@@ -515,10 +521,10 @@ public partial class App : Application
             return;
         }
 
-        if (_mouseHook is null)
+        if (_mouseHook is null || _profiles is null || _coordinator is null)
             return;
 
-        var monitor = new ScrollPulseMonitorWindow(_mouseHook)
+        var monitor = new ScrollPulseMonitorWindow(_mouseHook, _profiles, _coordinator)
         {
             Owner = owner,
             Icon = CreateWindowIcon(),
@@ -607,7 +613,7 @@ public partial class App : Application
             return;
         }
 
-        if (_profiles is null || _freeSpinRecorder is null)
+        if (_profiles is null || _freeSpinRecorder is null || _freeSpinDetector is null)
             return;
 
         var settings = _profiles.Snapshot;
@@ -618,14 +624,26 @@ public partial class App : Application
             settings.FreeSpinRepositionTarget,
             settings.FreeSpinLegitimateScrollTarget,
             _freeSpinRecorder,
+            _freeSpinDetector,
             enabled =>
             {
                 _profiles.SetFreeSpinInertiaSuppressionEnabled(enabled);
+                var s = _profiles.Snapshot;
+                _freeSpinDetector.Configure(enabled, s.FreeSpinDetectionMode, s.FreeSpinSuppressionConfidenceThreshold);
                 Persist();
             },
             (phase, target) =>
             {
                 _profiles.SetFreeSpinCalibrationTarget(phase, target);
+                Persist();
+            },
+            settings.FreeSpinDetectionMode,
+            settings.FreeSpinSuppressionConfidenceThreshold,
+            (mode, threshold) =>
+            {
+                _profiles.SetFreeSpinDetectionPolicy(mode, threshold);
+                var s = _profiles.Snapshot;
+                _freeSpinDetector.Configure(s.FreeSpinInertiaSuppressionEnabled, mode, threshold);
                 Persist();
             })
         {

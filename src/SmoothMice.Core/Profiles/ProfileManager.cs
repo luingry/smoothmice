@@ -84,6 +84,16 @@ public sealed class ProfileManager
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public void SetFreeSpinDetectionPolicy(FreeSpinDetectionMode mode, int confidenceThreshold)
+    {
+        lock (_lock)
+        {
+            _settings.FreeSpinDetectionMode = mode;
+            _settings.FreeSpinSuppressionConfidenceThreshold = AppSettings.ClampFreeSpinConfidenceThreshold(confidenceThreshold);
+        }
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public void SetDoNotActivateInGames(bool enabled)
     {
         lock (_lock)

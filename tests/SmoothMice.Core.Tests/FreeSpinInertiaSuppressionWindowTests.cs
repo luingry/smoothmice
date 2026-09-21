@@ -1,8 +1,13 @@
+using System;
 using System.Threading;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using SmoothMice.App;
+using SmoothMice.App.ViewModels;
+using SmoothMice.Core.Config;
 using SmoothMice.Core.Diagnostics;
+using SmoothMice.Core.Profiles;
 using SmoothMice.Infrastructure.Windows;
 using Xunit;
 
@@ -20,6 +25,11 @@ public class FreeSpinInertiaSuppressionWindowTests
             {
                 var app = new SmoothMice.App.App();
                 app.InitializeComponent();
+                // Production code sets this in OnStartup (not run here, since the test never
+                // calls Application.Run()). Without it, the default OnLastWindowClose mode
+                // shuts the Application down as soon as a dispatcher pump notices no window is
+                // open, which breaks every window construction after the first Close().
+                app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 var themeProbe = new Border();
                 themeProbe.SetResourceReference(Border.BackgroundProperty, "Brush.Surface");
                 var themeWindow = new System.Windows.Window { Content = themeProbe };
@@ -40,7 +50,36 @@ public class FreeSpinInertiaSuppressionWindowTests
                 source.Close();
                 var picker = new RunningWindowPickerDialog([]);
                 picker.Close();
-                var monitor = new ScrollPulseMonitorWindow(hook);
+                var profiles = new ProfileManager(DefaultSettings.CreateAppSettings());
+                using var coordinator = new ScrollCoordinator(profiles, hook, new ScrollInjector(), new ActiveAppResolver());
+                var monitor = new ScrollPulseMonitorWindow(hook, profiles, coordinator);
+                var monitorViewModel = (ScrollPulseMonitorViewModel)monitor.DataContext;
+                var now = DateTimeOffset.UtcNow;
+                monitorViewModel.Add(new ScrollPulseDiagnosticPulse(now, 1, false, 120, false, 0, 0), 40.0);
+                monitorViewModel.Add(new ScrollPulseDiagnosticPulse(now.AddMilliseconds(50), 2, false, -120, false, 0, 0), 40.0);
+                // Window.Show() ties layout to the native HWND lifecycle (SourceInitialized),
+                // which does not complete in this headless test host (no interactive window
+                // station). Measuring/arranging the content directly is a plain FrameworkElement
+                // operation and does not depend on an HWND, so it still exercises real layout.
+                var content = (FrameworkElement)monitor.Content!;
+                content.Measure(new Size(748, 520));
+                content.Arrange(new Rect(0, 0, 748, 520));
+                content.UpdateLayout();
+                var pulseList = (ListView)monitor.FindName("PulseList")!;
+                pulseList.UpdateLayout();
+                var container = pulseList.ItemContainerGenerator.ContainerFromIndex(0) as ListViewItem;
+                Assert.True(container is not null,
+                    $"No container generated (Items.Count={pulseList.Items.Count}, " +
+                    $"GeneratorStatus={pulseList.ItemContainerGenerator.Status}).");
+                container!.UpdateLayout();
+                // Regression guard for the GridView-rows-render-as-one-string bug: the global
+                // ListViewItem template is ContentPresenter-only, which silently ignores
+                // GridViewColumns. A correctly templated row must expose a GridViewRowPresenter
+                // with one realized cell per GridViewColumn.
+                var rowPresenter = FindVisualChild<GridViewRowPresenter>(container);
+                Assert.NotNull(rowPresenter);
+                Assert.True(VisualTreeHelper.GetChildrenCount(rowPresenter) > 1,
+                    "GridViewRowPresenter should have produced more than one cell.");
                 monitor.Close();
                 var window = new FreeSpinInertiaSuppressionWindow(
                     moduleEnabled: true,
@@ -64,5 +103,18 @@ public class FreeSpinInertiaSuppressionWindowTests
         thread.Join();
 
         Assert.Null(failure);
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T typed)
+                return typed;
+            if (FindVisualChild<T>(child) is T found)
+                return found;
+        }
+        return null;
     }
 }

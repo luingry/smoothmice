@@ -22,6 +22,8 @@ public sealed class FreeSpinCalibrationRecorder : IDisposable
     }
 
     public bool IsRecording { get { lock (_gate) return _active is not null; } }
+    /// <summary>Shared pipeline used by the optional live detector; never exposes hook control.</summary>
+    public MouseHookService HookService => _hook;
     public int EventCount { get { lock (_gate) return _active?.EventCount ?? 0; } }
     public int DroppedEventCount { get { lock (_gate) return _active?.DroppedEventCount ?? 0; } }
     public TimeSpan Duration

@@ -159,6 +159,18 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    public int AttackTimeMs
+    {
+        get => SelectedProfile?.Settings.AttackTimeMs ?? 0;
+        set
+        {
+            if (SelectedProfile is null) return;
+            SelectedProfile.Settings.AttackTimeMs = value;
+            Raise();
+            Save();
+        }
+    }
+
     public bool ProfileEnabled
     {
         get => SelectedProfile?.Settings.Enabled ?? true;
@@ -377,6 +389,7 @@ public sealed class MainViewModel : ViewModelBase
         Raise(nameof(StepSizePx));
         Raise(nameof(AnimationTimeMs));
         Raise(nameof(TailToHeadRatio));
+        Raise(nameof(AttackTimeMs));
         Raise(nameof(AnimationEasing));
         Raise(nameof(AccelerationDeltaMs));
         Raise(nameof(AccelerationCurvePreset));

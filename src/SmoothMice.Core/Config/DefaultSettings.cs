@@ -31,6 +31,8 @@ public static class DefaultSettings
         SelectedProfileId = GlobalProfileId,
         UpdateCheckFrequency = UpdateCheckFrequency.DailyOnStartup,
         FreeSpinInertiaSuppressionEnabled = false,
+        FreeSpinDetectionMode = SmoothMice.Core.Diagnostics.FreeSpinDetectionMode.ReadOnly,
+        FreeSpinSuppressionConfidenceThreshold = 90,
         DoNotActivateInGames = false,
         DarkMode = false,
         FreeSpinLiftTarget = 40,

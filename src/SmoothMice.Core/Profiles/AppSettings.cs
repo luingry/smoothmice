@@ -1,4 +1,5 @@
 using SmoothMice.Core.Config;
+using SmoothMice.Core.Diagnostics;
 using SmoothMice.Core.Updates;
 
 namespace SmoothMice.Core.Profiles;
@@ -21,6 +22,12 @@ public sealed class AppSettings
     /// and deliberately does not alter the scroll input path.
     /// </summary>
     public bool FreeSpinInertiaSuppressionEnabled { get; set; }
+
+    /// <summary>Read-only is deliberately the compatibility default for existing installs.</summary>
+    public FreeSpinDetectionMode FreeSpinDetectionMode { get; set; } = FreeSpinDetectionMode.ReadOnly;
+    private int _freeSpinSuppressionConfidenceThreshold = 90;
+    /// <summary>Minimum conservative (not generic probability) confidence required to suppress.</summary>
+    public int FreeSpinSuppressionConfidenceThreshold { get => _freeSpinSuppressionConfidenceThreshold; set => _freeSpinSuppressionConfidenceThreshold = ClampFreeSpinConfidenceThreshold(value); }
 
     /// <summary>
     /// When enabled, physical wheel input is left untouched for conservatively identified game windows.
@@ -47,6 +54,8 @@ public sealed class AppSettings
         Profiles = Profiles.Select(p => p.Clone()).ToList(),
         UpdateCheckFrequency = UpdateCheckFrequency,
         FreeSpinInertiaSuppressionEnabled = FreeSpinInertiaSuppressionEnabled,
+        FreeSpinDetectionMode = FreeSpinDetectionMode,
+        FreeSpinSuppressionConfidenceThreshold = FreeSpinSuppressionConfidenceThreshold,
         DoNotActivateInGames = DoNotActivateInGames,
         DarkMode = DarkMode,
         FreeSpinLiftTarget = FreeSpinLiftTarget,
@@ -57,4 +66,5 @@ public sealed class AppSettings
     };
 
     public static int ClampCalibrationTarget(int value) => Math.Max(30, Math.Min(50, value));
+    public static int ClampFreeSpinConfidenceThreshold(int value) => Math.Max(50, Math.Min(99, value));
 }

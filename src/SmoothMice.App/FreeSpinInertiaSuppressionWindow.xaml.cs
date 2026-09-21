@@ -15,6 +15,9 @@ public partial class FreeSpinInertiaSuppressionWindow : Window, INotifyPropertyC
     private readonly Action<bool> _saveModuleEnabled;
     private readonly Action<FreeSpinCalibrationPhase, int> _saveTarget;
     private readonly FreeSpinCalibrationRecorder _recorder;
+    private readonly FreeSpinDetectionService _detector;
+    private readonly Action<FreeSpinDetectionMode, int> _saveDetectionPolicy;
+    private readonly bool _ownsDetector;
     private readonly DispatcherTimer _ticker;
     private bool _initializing = true;
     private bool _moduleEnabled;
@@ -25,19 +28,41 @@ public partial class FreeSpinInertiaSuppressionWindow : Window, INotifyPropertyC
     private string _errorText = string.Empty;
     private int _liftTarget, _landingTarget, _repositionTarget, _legitimateTarget;
     private int _liftCount, _landingCount, _repositionCount, _legitimateCount;
+    private FreeSpinDetectionMode _detectionMode;
+    private string _confidenceThresholdText;
+    private string _detectorSummary = "Loading calibration model…";
+    private string _latestVerdict = "No live wheel event analyzed yet.";
+    private int _analyzedCount, _suppressedCount, _abstainedCount;
 
+    // Retained for the isolated constructor test and any extensions compiled against the
+    // calibration-only rollout. The owned detector uses the same hook but remains disabled.
     public FreeSpinInertiaSuppressionWindow(bool moduleEnabled, int liftTarget, int landingTarget, int repositionTarget, int legitimateTarget,
         FreeSpinCalibrationRecorder recorder, Action<bool> saveModuleEnabled, Action<FreeSpinCalibrationPhase, int> saveTarget)
+        : this(moduleEnabled, liftTarget, landingTarget, repositionTarget, legitimateTarget, recorder,
+            new FreeSpinDetectionService(recorder.HookService), saveModuleEnabled, saveTarget,
+            FreeSpinDetectionMode.ReadOnly, 90, (_, _) => { }, ownsDetector: true) { }
+
+    public FreeSpinInertiaSuppressionWindow(bool moduleEnabled, int liftTarget, int landingTarget, int repositionTarget, int legitimateTarget,
+        FreeSpinCalibrationRecorder recorder, FreeSpinDetectionService detector, Action<bool> saveModuleEnabled, Action<FreeSpinCalibrationPhase, int> saveTarget,
+        FreeSpinDetectionMode detectionMode, int confidenceThreshold, Action<FreeSpinDetectionMode, int> saveDetectionPolicy, bool ownsDetector = false)
     {
         _recorder = recorder ?? throw new ArgumentNullException(nameof(recorder));
         _saveModuleEnabled = saveModuleEnabled ?? throw new ArgumentNullException(nameof(saveModuleEnabled));
         _saveTarget = saveTarget ?? throw new ArgumentNullException(nameof(saveTarget));
+        _detector = detector ?? throw new ArgumentNullException(nameof(detector));
+        _saveDetectionPolicy = saveDetectionPolicy ?? throw new ArgumentNullException(nameof(saveDetectionPolicy));
+        _ownsDetector = ownsDetector;
+        _detectionMode = detectionMode;
+        _confidenceThresholdText = ClampConfidence(confidenceThreshold).ToString(CultureInfo.InvariantCulture);
         _liftTarget = Clamp(liftTarget); _landingTarget = Clamp(landingTarget); _repositionTarget = Clamp(repositionTarget); _legitimateTarget = Clamp(legitimateTarget);
         ModuleEnabled = moduleEnabled; RefreshCounts(); SyncSelectedTarget();
         _ticker = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
         _ticker.Tick += (_, _) => RaiseRecordingProperties();
+        _detectorSummary = _detector.ModelSummary;
+        _detector.DecisionObserved += Detector_OnDecisionObserved;
         DataContext = this; InitializeComponent(); _initializing = false;
     }
+
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public bool ModuleEnabled { get => _moduleEnabled; set { if (_moduleEnabled == value) return; _moduleEnabled = value; Raise(nameof(ModuleEnabled)); } }
@@ -45,6 +70,12 @@ public partial class FreeSpinInertiaSuppressionWindow : Window, INotifyPropertyC
     public bool IsLandingSelected => _selected == FreeSpinCalibrationPhase.Landing;
     public bool IsRepositionSelected => _selected == FreeSpinCalibrationPhase.Reposition;
     public bool IsLegitimateSelected => _selected == FreeSpinCalibrationPhase.LegitimateScroll;
+    public bool IsReadOnlyMode { get => _detectionMode == FreeSpinDetectionMode.ReadOnly; set { if (!value) return; _detectionMode = FreeSpinDetectionMode.ReadOnly; SaveDetectionPolicy(); Raise(nameof(IsReadOnlyMode)); Raise(nameof(IsSuppressMode)); } }
+    public bool IsSuppressMode { get => _detectionMode == FreeSpinDetectionMode.Suppress; set { if (!value) return; _detectionMode = FreeSpinDetectionMode.Suppress; SaveDetectionPolicy(); Raise(nameof(IsReadOnlyMode)); Raise(nameof(IsSuppressMode)); } }
+    public string ConfidenceThresholdText { get => _confidenceThresholdText; set { _confidenceThresholdText = value; Raise(nameof(ConfidenceThresholdText)); } }
+    public string DetectorSummary => _detectorSummary;
+    public string LatestVerdict => _latestVerdict;
+    public string DetectorCountersText => $"Analyzed {_analyzedCount:N0} · Suppressed {_suppressedCount:N0} · Abstained {_abstainedCount:N0}";
     public string LiftCountText => CountText(_liftCount, _liftTarget);
     public string LandingCountText => CountText(_landingCount, _landingTarget);
     public string RepositionCountText => CountText(_repositionCount, _repositionTarget);
@@ -136,7 +167,7 @@ public partial class FreeSpinInertiaSuppressionWindow : Window, INotifyPropertyC
                 _statusText = result.Message ?? "The capture is not valid yet.";
                 return;
             }
-            RefreshCounts();
+            RefreshCounts(); await ReloadDetectorAsync();
             _statusText = "Sample saved. " + (SelectedCount >= SelectedTarget ? "Target reached." : "Ready for the next sample with F8.");
         }
         catch (Exception ex) { _errorText = "The capture ended, but the sample could not be persisted: " + ex.Message; }
@@ -151,7 +182,7 @@ public partial class FreeSpinInertiaSuppressionWindow : Window, INotifyPropertyC
     private void Reset_OnClick(object sender, RoutedEventArgs e)
     {
         if (MessageBox.Show($"Delete only the samples for {SelectedStageTitle}? This does not affect the other phases.", "Confirm reset", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
-        try { _recorder.Reset(_selected); RefreshCounts(); _statusText = "Samples for this phase were removed."; _errorText = string.Empty; } catch (Exception ex) { _errorText = "Could not reset this phase: " + ex.Message; }
+        try { _recorder.Reset(_selected); RefreshCounts(); _ = ReloadDetectorAsync(); _statusText = "Samples for this phase were removed; detector reload started."; _errorText = string.Empty; } catch (Exception ex) { _errorText = "Could not reset this phase: " + ex.Message; }
         RaiseSelectionProperties(); Raise(nameof(StatusText)); Raise(nameof(ErrorText));
     }
     private void Target_OnLostFocus(object sender, RoutedEventArgs e) => ApplyTarget();
@@ -162,7 +193,27 @@ public partial class FreeSpinInertiaSuppressionWindow : Window, INotifyPropertyC
         SetTarget(_selected, value); _selectedTargetText = value.ToString(CultureInfo.InvariantCulture); _saveTarget(_selected, value);
         _statusText = SelectedCount >= value ? "Target reached for this phase." : "Target updated."; RaiseSelectionProperties(); Raise(nameof(StatusText));
     }
-    private void Window_OnClosed(object? sender, EventArgs e) { if (_recorder.IsRecording) _recorder.Cancel(); _ticker.Stop(); }
+    private void DetectionThreshold_OnLostFocus(object sender, RoutedEventArgs e) => SaveDetectionPolicy();
+    private void DetectionThreshold_OnKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) { SaveDetectionPolicy(); Keyboard.ClearFocus(); } }
+    private void SaveDetectionPolicy()
+    {
+        var threshold = int.TryParse(_confidenceThresholdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? ClampConfidence(parsed) : 90;
+        _confidenceThresholdText = threshold.ToString(CultureInfo.InvariantCulture);
+        _saveDetectionPolicy(_detectionMode, threshold);
+        _detectorSummary = _detector.ModelSummary;
+        Raise(nameof(ConfidenceThresholdText));
+        Raise(nameof(DetectorSummary));
+    }
+    private async Task ReloadDetectorAsync()
+    {
+        _detectorSummary = "Reloading calibration model…"; Raise(nameof(DetectorSummary));
+        await _detector.ReloadAsync(); _detectorSummary = _detector.ModelSummary; Raise(nameof(DetectorSummary));
+    }
+    private void Detector_OnDecisionObserved(object? sender, FreeSpinDetectionDecision decision)
+    {
+        try { Dispatcher.BeginInvoke(new Action(() => { _analyzedCount++; if (decision.ShouldSuppress) _suppressedCount++; if (decision.Verdict == FreeSpinVerdict.Abstain) _abstainedCount++; var phase = decision.LikelyPhase == FreeSpinInertiaPhase.None ? "No supported inertia phase" : "Likely " + decision.LikelyPhase; _latestVerdict = $"{decision.Verdict} · {phase}: {decision.Reason} Conservative suppression confidence: {decision.ConservativeConfidence:P0}."; Raise(nameof(LatestVerdict)); Raise(nameof(DetectorCountersText)); })); } catch { }
+    }
+    private void Window_OnClosed(object? sender, EventArgs e) { _detector.DecisionObserved -= Detector_OnDecisionObserved; if (_ownsDetector) _detector.Dispose(); if (_recorder.IsRecording) _recorder.Cancel(); _ticker.Stop(); }
     private void RefreshCounts() { _liftCount = _recorder.Count(FreeSpinCalibrationPhase.Lift); _landingCount = _recorder.Count(FreeSpinCalibrationPhase.Landing); _repositionCount = _recorder.Count(FreeSpinCalibrationPhase.Reposition); _legitimateCount = _recorder.Count(FreeSpinCalibrationPhase.LegitimateScroll); }
     private void SetTarget(FreeSpinCalibrationPhase phase, int value) { switch (phase) { case FreeSpinCalibrationPhase.Lift: _liftTarget = value; break; case FreeSpinCalibrationPhase.Landing: _landingTarget = value; break; case FreeSpinCalibrationPhase.Reposition: _repositionTarget = value; break; default: _legitimateTarget = value; break; } }
     private void SyncSelectedTarget() => _selectedTargetText = SelectedTarget.ToString(CultureInfo.InvariantCulture);
@@ -171,4 +222,5 @@ public partial class FreeSpinInertiaSuppressionWindow : Window, INotifyPropertyC
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     private static string CountText(int count, int target) => $"{count:N0} / {target:N0} samples" + (count >= target ? " · complete" : string.Empty);
     private static int Clamp(int value) => Math.Max(30, Math.Min(50, value));
+    private static int ClampConfidence(int value) => Math.Max(50, Math.Min(99, value));
 }

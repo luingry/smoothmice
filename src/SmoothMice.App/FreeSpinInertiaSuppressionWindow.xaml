@@ -139,7 +139,7 @@
                         <ToggleButton Style="{StaticResource ModuleSwitch}" IsChecked="{Binding ModuleEnabled, Mode=TwoWay}" Checked="ModuleSwitch_OnChanged" Unchecked="ModuleSwitch_OnChanged"
                                       AutomationProperties.Name="Enable Free-Spin Inertia Suppression"
                                       AutomationProperties.HelpText="When off, the phases are hidden and no input is suppressed." />
-                        <TextBlock Text="Monitor Only" Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="10" Foreground="{DynamicResource Brush.Muted}" />
+                        <TextBlock Text="Detection" Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="10" Foreground="{DynamicResource Brush.Muted}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -148,6 +148,24 @@
                 <Border Background="{DynamicResource Brush.InfoSurface}" BorderBrush="{DynamicResource Brush.InfoBorder}" BorderThickness="1" CornerRadius="8" Padding="11,9">
                     <TextBlock FontSize="11" Foreground="{DynamicResource Brush.InfoText}" TextWrapping="Wrap"
                                Text="Recommended flow: press F8 to start, perform the gesture, then press F8 again to finish without adding the return click to the sample. Esc cancels and discards it." />
+                </Border>
+
+                <Border Margin="0,10,0,0" Background="{DynamicResource Brush.Card}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1" CornerRadius="8" Padding="11">
+                    <StackPanel>
+                        <TextBlock Text="Live detection" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}" />
+                        <TextBlock Text="{Binding DetectorSummary}" Margin="0,3,0,7" FontSize="10" Foreground="{DynamicResource Brush.Muted}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="110" /></Grid.ColumnDefinitions>
+                            <RadioButton Grid.Column="0" GroupName="detectionMode" Content="Read-only" IsChecked="{Binding IsReadOnlyMode, Mode=TwoWay}" AutomationProperties.Name="Read-only detection mode" AutomationProperties.HelpText="Classifies physical wheel events but never blocks them." />
+                            <RadioButton Grid.Column="1" GroupName="detectionMode" Content="Suppress" IsChecked="{Binding IsSuppressMode, Mode=TwoWay}" AutomationProperties.Name="Suppress detection mode" AutomationProperties.HelpText="Blocks only calibrated high-confidence inertia events; uncertain events always pass." />
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Confidence 50–99" FontSize="10" Foreground="{DynamicResource Brush.Muted}" />
+                                <TextBox Text="{Binding ConfidenceThresholdText, UpdateSourceTrigger=PropertyChanged}" LostFocus="DetectionThreshold_OnLostFocus" KeyDown="DetectionThreshold_OnKeyDown" AutomationProperties.Name="Conservative suppression confidence threshold" AutomationProperties.HelpText="Minimum conservative suppression confidence, from 50 to 99 percent." />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding LatestVerdict}" Margin="0,8,0,0" FontSize="10" Foreground="{DynamicResource Brush.Text}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock Text="{Binding DetectorCountersText}" Margin="0,3,0,0" FontSize="10" Foreground="{DynamicResource Brush.Muted}" />
+                    </StackPanel>
                 </Border>
 
                 <TextBlock Text="Choose the gesture to record" Margin="2,14,0,6" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Text}" />

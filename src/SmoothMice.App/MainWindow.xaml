@@ -219,6 +219,13 @@
                              Text="{Binding TailToHeadRatio, Mode=TwoWay,
                                             UpdateSourceTrigger=LostFocus,
                                             Converter={StaticResource DoubleStr}}"/>
+
+                    <TextBlock Text="Start smoothing (ms, 0 = auto)" Style="{StaticResource FieldLabel}"/>
+                    <TextBox LostFocus="Numeric_OnLostFocus"
+                             KeyDown="Numeric_OnKeyDown"
+                             Text="{Binding AttackTimeMs, Mode=TwoWay,
+                                            UpdateSourceTrigger=LostFocus,
+                                            Converter={StaticResource IntStr}}"/>
                 </StackPanel>
 
                 <Rectangle Grid.Column="1"
