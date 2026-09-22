@@ -1,5 +1,72 @@
 # Resolved errors
 
+## 2026-09-22 — Main window still oversized on first open after the 2.2.1 "fix"; real root cause found
+
+- Symptom: after shipping 2.2.1's fix for the oversized-side-margins bug (see the entry below,
+  now superseded), the user reported the bug still happened on the exact same running instance.
+  2.2.1's fix addressed a *hypothesized* cold-JIT measurement race that turned out not to be the
+  actual mechanism.
+- Investigation: inspected the user's actual running instance live (`GetWindowRect`,
+  `GetWindowPlacement` via P/Invoke from PowerShell against the real HWND) instead of continuing
+  to theorize. Found `GetClientRect` width = 452 (expected ~308) while UI Automation confirmed the
+  fixed-width 288px content Grid was rendering at exactly the right size, centered with ~90px of
+  dead space on each side. Checked the process command line: `SmoothMice.exe /tray` — confirming
+  the window was created via the auto-start-hidden path (`App.xaml.cs`'s `startInTray` branch:
+  `WindowState=Minimized; Show(); Hide();`), not a plain visible cold start. `GetWindowPlacement`
+  on the hidden HWND showed `rcNormalPosition` width = 1920 (a full monitor width) — the OS's
+  arbitrary default "restore" rect, completely disconnected from WPF's SizeToContent-computed
+  size, which was never pushed to the HWND because WPF does not resize a minimized window.
+- Root cause: `MainWindow.SnapClientSizeToDevicePixels` (`src/SmoothMice.App/MainWindow.xaml.cs`)
+  only ever *reads* `ActualWidth`/`ActualHeight` and snaps that value to whole device pixels — it
+  never forces WPF to actually recompute size from content. In the normal (visible-from-start)
+  case this is fine because `ActualWidth` is already correct. In the tray-hidden-then-restored
+  case, `ActualWidth` reflects the stale native restore rect once `WindowState` flips back to
+  `Normal`, and — critically — this wrong value is *stable* (identically wrong on every read), so
+  2.2.1's "wait for two consecutive identical readings" heuristic could never catch it; it just
+  confirmed the wrong value twice and locked it in.
+- Solution: added `InvalidateMeasure(); InvalidateArrange(); UpdateLayout();` at the top of
+  `SnapClientSizeToDevicePixels`, gated on the window already being confirmed Normal+Visible by
+  the existing guard above it. This forces WPF to redo a real Measure/Arrange pass and push the
+  corrected geometry to the HWND before anything trusts `ActualWidth`/`ActualHeight`.
+- Verification: real STA-process repro (a throwaway console harness referencing the actual
+  `SmoothMice.App`/`MainWindow` classes, run as its own process so `Application.ResourceAssembly`
+  resolves correctly) replaying the exact production sequence — `ShowInTaskbar=false;
+  WindowState=Minimized; Show(); Hide(); ShowInTaskbar=true;` then later `Show();
+  WindowState=Normal; RecalculateWindowSize(); Activate();`. With the fix disabled, the harness
+  settled at native width 468px — the *exact* width independently measured via `GetWindowRect` on
+  the real, already-affected running instance, confirming the harness faithfully reproduces the
+  real bug. With the fix restored, it settles at 324px (matches the 288px content + margins +
+  chrome). A permanent xunit regression test was attempted but is not viable in this project's
+  vstest host: `Application.ResourceAssembly` (needed to resolve `MainWindow`'s
+  `pack://application:,,,/SmoothMice.ico` lookup) resolves to the vstest host executable there and
+  cannot be reassigned once any WPF type has loaded — the same constraint already noted by this
+  project's existing `FreeSpinInertiaSuppressionWindowTests` for `Window.Show()`/HWND-dependent
+  scenarios. The real-process harness was used for verification only and was not checked in.
+- Prevention: a "snap to device pixels" step that only *reads* `ActualWidth` and rounds it is not
+  the same as *recomputing* the correct size — it is only safe when the caller can guarantee
+  `ActualWidth` already reflects real content, which does not hold for a window whose HWND was
+  first geometry-synced while minimized/hidden. When a window can transition from
+  minimized/hidden to Normal/visible, any code that will trust its size afterward must force a
+  fresh layout pass first, not just wait for the read to stabilize — a stale native value can be
+  perfectly stable while still being wrong. Also: when a live-measured symptom persists after a
+  "fix," re-measure the actual affected instance again before re-theorizing — a live
+  `GetWindowRect`/`GetWindowPlacement` capture (and the exact process command line) found the real
+  mechanism in minutes where further speculation about DPI/JIT timing would not have.
+
+## 2026-09-22 — Main window could show larger side margins on some first launches (SUPERSEDED — see the newer 2026-09-22 entry above; the actual root cause was different)
+
+- Original (incomplete) diagnosis: hypothesized a race between `ContentRendered` and `Loaded`
+  both calling `SnapClientSizeToDevicePixels` before layout had settled on a cold first paint, and
+  "fixed" it by routing both through one path and requiring two consecutive stable readings before
+  freezing the size. This shipped in 2.2.1.
+- Why it didn't work: the real trigger is the app's normal `/tray` auto-start path (window created
+  Minimized+Hidden), not a cold-JIT timing race on a plain visible launch. In that path the wrong
+  `ActualWidth` reading is consistently wrong (inherited from the OS's stale minimized-restore
+  rect), not transiently wrong, so "wait for a stable reading" never helps — it just confirms the
+  bad value twice. Kept the stability-check code (harmless, still a reasonable guard for the
+  originally-hypothesized cold-paint case) but it was not sufficient on its own; see the entry
+  above for the actual fix.
+
 ## 2026-09-22 — settings.json could silently revert to defaults, losing custom app profiles
 
 - Symptom: user reported that scroll parameters sometimes reverted to defaults and custom

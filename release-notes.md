@@ -4,6 +4,30 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.2.2 — 2026-09-22
+
+### Fixed — 2.2.1's fix for the oversized first-launch window was wrong; root cause and real fix
+
+- 2.2.1 claimed to fix the main window sometimes showing much wider on first open, but the
+  actual reported repro path (app auto-starts hidden in the tray, then the user opens it from
+  the tray icon for the first time in that session) still showed the bug afterward.
+- Root cause confirmed with live measurements against the running app (`GetWindowRect` /
+  `GetWindowPlacement`, and a real STA-process repro of the exact `/tray` startup sequence): a
+  window first created while minimized/hidden (the normal case, since the app launches with
+  `/tray` on login) never gets a real layout pass against actual content — WPF does not resize
+  the underlying HWND while minimized. Windows leaves the HWND with an arbitrary large default
+  "restore" rect (`GetWindowPlacement` showed `rcNormalPosition` as wide as a full monitor width
+  in one capture). When the tray's "Open" handler later flips `WindowState` to `Normal`, that
+  stale rect becomes `ActualWidth`/`ActualHeight` — consistently, not transiently, so 2.2.1's
+  "wait for a stable reading" approach could not catch it (the wrong value was already stable).
+- Fix: `SnapClientSizeToDevicePixels` (`MainWindow.xaml.cs`) now forces a fresh
+  `InvalidateMeasure`/`InvalidateArrange`/`UpdateLayout` pass once the window is genuinely Normal
+  and visible, before trusting `ActualWidth`/`ActualHeight` — this makes WPF actually resync the
+  HWND from real content instead of leaving the OS's stale restore rect in place. Verified with a
+  real-process repro: without this fix the window settles at 468px wide (matching the exact width
+  independently measured on the real installed app); with it, ~324px (matching the fixed 288px
+  content + margins + chrome).
+
 ## 2.2.1 — 2026-09-22
 
 ### Fixed — settings could silently revert to defaults, losing custom app profiles

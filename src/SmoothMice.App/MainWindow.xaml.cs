@@ -228,6 +228,21 @@ public partial class MainWindow
         if (WindowState == WindowState.Minimized || Visibility != Visibility.Visible)
             return;
 
+        // Root cause of the "much wider on first open" bug: a window first created while
+        // minimized/hidden (tray auto-start, the common case since the app launches with
+        // /tray on login) never gets a real Measure/Arrange pass against actual content —
+        // WPF does not resize the underlying HWND while minimized. The HWND is left with
+        // whatever placeholder/restore rect Windows assigned it at creation. When the tray
+        // "Open" handler later flips WindowState to Normal and calls RecalculateWindowSize,
+        // ActualWidth/ActualHeight below would otherwise still reflect that stale rect — and
+        // it reads back CONSISTENTLY wrong, not transiently wrong, so waiting for a stable
+        // reading (below) cannot catch it. Force a fresh layout pass now that the window is
+        // genuinely Normal and visible so WPF actually resizes the HWND from real content
+        // before anything here trusts ActualWidth/ActualHeight.
+        InvalidateMeasure();
+        InvalidateArrange();
+        UpdateLayout();
+
         if (ActualWidth <= 0 || ActualHeight <= 0)
         {
             if (_snapRetryRemaining-- > 0)
