@@ -20,6 +20,8 @@ public partial class MainWindow
     private bool _namesEventsWired;
     private MainViewModel? _vmSubscribed;
     private int _snapRetryRemaining = 40;
+    private double _snapLastSeenWidth = -1;
+    private double _snapLastSeenHeight = -1;
     private DispatcherTimer? _liveApplyTimer;
 
     public MainWindow()
@@ -190,6 +192,8 @@ public partial class MainWindow
         if (!_loaded) return;
 
         _snapRetryRemaining = 40;
+        _snapLastSeenWidth = -1;
+        _snapLastSeenHeight = -1;
         SizeToContent = SizeToContent.WidthAndHeight;
         Dispatcher.BeginInvoke(
             DispatcherPriority.Loaded,
@@ -200,10 +204,16 @@ public partial class MainWindow
     /// WPF: SizeToContent width+height with non-resizable chrome can leave a black strip at the client edge
     /// (HWND vs renderer misalignment). Snap outer size to whole device pixels and stop auto-sizing.
     /// https://github.com/dotnet/wpf/issues/9816
+    ///
+    /// Route through the same request path as <see cref="MainWindow_OnLoaded"/> instead of calling
+    /// the snap directly: on a cold first launch (JIT, style/resource resolution still settling),
+    /// calling it immediately here could race the Loaded-priority pass below and freeze the window
+    /// at a transient, not-yet-final measurement — visible as oversized side margins that only show
+    /// up intermittently on the very first open and disappear on the next one (warm process).
     /// </summary>
     private void MainWindow_OnContentRendered(object? sender, EventArgs e)
     {
-        SnapClientSizeToDevicePixels();
+        RequestSnapToContentAfterLayout();
     }
 
     /// <summary>
@@ -237,6 +247,26 @@ public partial class MainWindow
             {
                 Dispatcher.BeginInvoke(
                     DispatcherPriority.Render,
+                    new Action(SnapClientSizeToDevicePixels));
+            }
+
+            return;
+        }
+
+        // Cold-start layout (assembly JIT, style/resource dictionary resolution, font
+        // substitution) can still be settling across several frames the first time this window
+        // is ever shown in the process. Require the same reading twice in a row, one
+        // ApplicationIdle turn apart, before freezing the size — otherwise a transient,
+        // not-yet-final measurement gets locked in permanently (SizeToContent flips to Manual
+        // below) and shows up as oversized side margins around the fixed-width content.
+        if (ActualWidth != _snapLastSeenWidth || ActualHeight != _snapLastSeenHeight)
+        {
+            _snapLastSeenWidth = ActualWidth;
+            _snapLastSeenHeight = ActualHeight;
+            if (_snapRetryRemaining-- > 0)
+            {
+                Dispatcher.BeginInvoke(
+                    DispatcherPriority.ApplicationIdle,
                     new Action(SnapClientSizeToDevicePixels));
             }
 

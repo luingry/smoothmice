@@ -4,6 +4,39 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.2.1 — 2026-09-22
+
+### Fixed — settings could silently revert to defaults, losing custom app profiles
+
+- `JsonSettingsRepository.Save` wrote `settings.json` directly with `File.WriteAllText`
+  (truncate-then-write, not atomic). A crash, force-kill, or power loss mid-write left a
+  truncated/invalid file; `LoadOrCreate` caught the parse failure and silently fell back to
+  hard defaults — and since the app persists very frequently (every UI change, every 300 ms
+  while the window is visible, on deactivate, after update checks), the very next save then
+  overwrote the corrupted file with those defaults, permanently erasing any custom per-app
+  profiles.
+- Separately, `Save` had no locking: the UI's live-apply timer (UI thread) and a background
+  update-check (thread-pool thread, via `CheckForUpdatesAsync`) could both call it on the same
+  `JsonSettingsRepository` instance at the same time, racing on the same file.
+- `Save` now writes to a temp file first and swaps it in with `File.Replace` (atomic on NTFS,
+  and keeps the previous good file as `settings.json.bak` in the same operation), and both
+  `Save`/`LoadOrCreate` take an instance lock so concurrent writers can no longer interleave.
+  `LoadOrCreate` now falls back to `settings.json.bak` before ever returning defaults, and if a
+  primary file is genuinely unreadable it is copied aside as `settings.json.corrupt-<timestamp>`
+  instead of being silently discarded.
+
+### Fixed — first launch could show much wider side margins than normal
+
+- The main window's fixed-width content (288px) could end up centered in a wider-than-intended
+  window on some launches, showing large empty gaps on both sides; closing and reopening the app
+  always fixed it. Root cause: two independent code paths (`ContentRendered` and the `Loaded`
+  handler) both raced to measure the window and freeze its size (`SizeToContent` → `Manual`) —
+  on a cold first paint (JIT, style/resource resolution still settling) one of them could freeze
+  the window at a transient, not-yet-final measurement.
+- The window now requires the same width/height reading twice in a row (an `ApplicationIdle`
+  turn apart) before freezing the size, and both callers go through one shared request path
+  instead of racing each other.
+
 ## 2.2.0 — 2026-09-21
 
 ### Changed — smoothing engine rewritten as an independent pulse queue

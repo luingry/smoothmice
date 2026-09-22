@@ -1,5 +1,70 @@
 # Resolved errors
 
+## 2026-09-22 — settings.json could silently revert to defaults, losing custom app profiles
+
+- Symptom: user reported that scroll parameters sometimes reverted to defaults and custom
+  per-app profiles they had added were gone, with no clear trigger.
+- Root cause (two compounding issues in `JsonSettingsRepository`,
+  `src/SmoothMice.Infrastructure/Persistence/JsonSettingsRepository.cs`):
+  1. `Save` wrote directly to `settings.json` via `File.WriteAllText` (truncate then write, not
+     atomic). Any interruption mid-write (crash, force-kill, power loss) left invalid/truncated
+     JSON. `LoadOrCreate` caught the resulting parse exception and silently returned
+     `DefaultSettings.CreateAppSettings()` with no logging or recovery attempt.
+  2. `Save` had no synchronization, and the app calls it from more than one thread on the same
+     shared `JsonSettingsRepository` instance: the UI's `LiveApplyTimer` (every 300 ms while the
+     window is visible, `MainWindow.xaml.cs`) runs on the UI thread, while
+     `App.CheckForUpdatesAsync` (`src/SmoothMice.App/App.xaml.cs`) calls `_repo.Save(...)` from a
+     thread-pool thread after `ConfigureAwait(false)`. Two concurrent writers to the same path can
+     interleave/truncate each other's output.
+  3. Because the app persists on nearly every UI interaction, the very first save after a
+     corruption event immediately overwrote the corrupted file with fresh defaults — the original
+     custom profiles were gone for good by the time anyone noticed.
+- Solution: `Save` now writes to a `.tmp` file first, then swaps it in with
+  `File.Replace(tmp, FilePath, backupPath, ignoreMetadataErrors: true)` — atomic on NTFS, and it
+  also demotes the previous good file to `settings.json.bak` in the same operation. Both `Save`
+  and `LoadOrCreate` take an instance-level lock so concurrent callers can no longer interleave.
+  `LoadOrCreate` tries the primary file, then `settings.json.bak`, before ever falling back to
+  defaults; an unreadable primary is copied aside as `settings.json.corrupt-<timestamp>` instead
+  of being silently discarded, so a bad file is never destroyed without a recoverable trace.
+  Regression tests in `tests/SmoothMice.Core.Tests/JsonSettingsRepositoryTests.cs` cover
+  round-tripping custom profiles, recovering from a simulated torn write via the backup, the
+  quarantine behavior, and 20 concurrent `Save` calls never leaving a missing/corrupt file.
+- Prevention: any settings/state file that is (a) written from more than one thread and (b)
+  written frequently enough that a corruption event will be overwritten again within seconds
+  needs both an atomic write (temp file + platform rename/replace) AND a same-instance lock —
+  neither alone is sufficient once multiple threads can call `Save` concurrently. Also: a
+  `catch { return defaults; }` around deserialization is a silent, permanent data-loss trap the
+  moment the caller might write that same file again soon after — always keep a last-known-good
+  backup and quarantine unreadable files instead of just discarding them.
+
+## 2026-09-22 — Main window showed much larger side margins on some first launches
+
+- Symptom: on some app launches (not all, and typically the very first open), the window
+  appeared with noticeably larger empty space on both sides of the fixed-width content than
+  normal; closing and reopening the app always fixed it.
+- Root cause: `MainWindow.xaml.cs` had two independent code paths that could each measure the
+  window and freeze its size — `MainWindow_OnContentRendered` called
+  `SnapClientSizeToDevicePixels()` directly and immediately, while `MainWindow_OnLoaded` (via
+  `RequestSnapToContentAfterLayout`) scheduled the same method at `DispatcherPriority.Loaded`.
+  Whichever ran first read `ActualWidth`/`ActualHeight` and immediately flipped
+  `SizeToContent` to `Manual`, permanently locking in whatever was measured — with no check that
+  layout had actually settled. On a cold first paint (assembly JIT, style/resource dictionary
+  resolution, font substitution all still in flight), that first reading could be a transient,
+  not-yet-final measurement; once `SizeToContent` was `Manual`, the window would never re-fit to
+  the correct content size. A second launch (warm JIT/disk caches) settled fast enough that both
+  paths read the same, correct value, masking the bug.
+- Solution: `MainWindow_OnContentRendered` now routes through the same
+  `RequestSnapToContentAfterLayout` entry point instead of calling the snap directly, so there is
+  one pipeline instead of two racing callers. `SnapClientSizeToDevicePixels` now also requires the
+  same width/height reading twice in a row, one `DispatcherPriority.ApplicationIdle` turn apart,
+  before freezing the size — reusing the existing `_snapRetryRemaining` retry budget as the safety
+  net against never stabilizing.
+- Prevention: never let two independently-triggered handlers both "measure once and freeze"
+  the same layout-dependent state; route them through one shared, idempotent entry point, and
+  require a stable (repeated) reading before committing to any size/position that becomes
+  permanent — especially on a first-ever cold paint in the process, where JIT/resource-loading
+  timing is not deterministic across launches.
+
 ## 2026-09-21 — Smoothing was structurally inconsistent (jump on resume, weak continuous scroll); replaced the shared-ramp engine with an independent pulse-queue model
 
 - Symptom: three prior tuning fixes to the same engine (see the two entries below) failed to
