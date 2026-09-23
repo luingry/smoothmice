@@ -167,9 +167,16 @@ public sealed class MainViewModel : ViewModelBase
             if (SelectedProfile is null) return;
             SelectedProfile.Settings.AttackTimeMs = value;
             Raise();
+            Raise(nameof(IsTailToHeadRatioEffective));
             Save();
         }
     }
+
+    /// <summary>
+    /// Tail / head ratio only shapes the curve when easing is on and Start smoothing is 0 (auto);
+    /// an explicit Start smoothing value overrides it.
+    /// </summary>
+    public bool IsTailToHeadRatioEffective => AnimationEasing && AttackTimeMs <= 0;
 
     public bool ProfileEnabled
     {
@@ -191,6 +198,7 @@ public sealed class MainViewModel : ViewModelBase
             if (SelectedProfile is null) return;
             SelectedProfile.Settings.AnimationEasing = value;
             Raise();
+            Raise(nameof(IsTailToHeadRatioEffective));
             Save();
         }
     }
@@ -391,6 +399,7 @@ public sealed class MainViewModel : ViewModelBase
         Raise(nameof(TailToHeadRatio));
         Raise(nameof(AttackTimeMs));
         Raise(nameof(AnimationEasing));
+        Raise(nameof(IsTailToHeadRatioEffective));
         Raise(nameof(AccelerationDeltaMs));
         Raise(nameof(AccelerationCurvePreset));
         Raise(nameof(AccelerationExponent));

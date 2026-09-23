@@ -213,16 +213,22 @@
                                             UpdateSourceTrigger=LostFocus,
                                             Converter={StaticResource IntStr}}"/>
 
-                    <TextBlock Text="Tail / head ratio" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="Tail / head ratio"
+                               Style="{StaticResource FieldLabel}"
+                               ToolTip="Used only when Animation easing is on and Start smoothing is 0 (auto)"/>
                     <TextBox LostFocus="Numeric_OnLostFocus"
                              KeyDown="Numeric_OnKeyDown"
+                             IsEnabled="{Binding IsTailToHeadRatioEffective}"
                              Text="{Binding TailToHeadRatio, Mode=TwoWay,
                                             UpdateSourceTrigger=LostFocus,
                                             Converter={StaticResource DoubleStr}}"/>
 
-                    <TextBlock Text="Start smoothing (ms, 0 = auto)" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="Start smoothing (ms, 0 = auto)"
+                               Style="{StaticResource FieldLabel}"
+                               ToolTip="Ease-in time of each notch. Used only when Animation easing is on; capped at half the Animation time so every scroll still eases out"/>
                     <TextBox LostFocus="Numeric_OnLostFocus"
                              KeyDown="Numeric_OnKeyDown"
+                             IsEnabled="{Binding AnimationEasing}"
                              Text="{Binding AttackTimeMs, Mode=TwoWay,
                                             UpdateSourceTrigger=LostFocus,
                                             Converter={StaticResource IntStr}}"/>

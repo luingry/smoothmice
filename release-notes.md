@@ -4,6 +4,23 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.2.3 — 2026-09-23
+
+### Fixed — "Start smoothing" / animation easing curve and settings
+
+- **High "Start smoothing" values made scrolls stop dead.** The easing curve is cut at the end of
+  the animation time, and its deceleration tail only reached near-zero velocity when the
+  acceleration phase was ≤ ¼ of the animation. With Start smoothing ≥ Animation time the curve
+  was pure acceleration and ended at *peak* velocity (≈37% of peak at half the time). The
+  acceleration phase is now capped at half the animation time, and short tails decay faster
+  (velocity stays continuous) so every scroll eases out to ≤ ~5% of peak. Curves for the default
+  settings (and any Start smoothing ≤ ¼ of Animation time) are unchanged.
+- **Scrolling across windows with different profiles could jerk or briefly scroll backwards.**
+  Every tick reshaped all in-flight notches with the settings of the *latest* notch; each notch
+  now keeps the animation time, easing and curve it was pushed with.
+- **Settings UI:** "Start smoothing" is disabled when Animation easing is off, and "Tail / head
+  ratio" is disabled when it has no effect (easing off, or Start smoothing set explicitly).
+
 ## 2.2.2 — 2026-09-22
 
 ### Fixed — 2.2.1's fix for the oversized first-launch window was wrong; root cause and real fix

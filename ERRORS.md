@@ -1,5 +1,25 @@
 # Resolved errors
 
+## 2026-09-23 — Large "Start smoothing" ended scrolls at peak velocity; mixed-profile pulses jerked/reversed
+
+- Symptom: with Start smoothing (`AttackTimeMs`) near/above Animation time, each scroll stopped
+  abruptly instead of easing out. Separately, notching in a window with a different profile
+  while a previous animation was still running could jump or tick backwards.
+- Root cause 1: the Herf pulse is truncated at t=1; velocity at the cut is `e^-(scale-1)` of peak.
+  Only scale ≥ 4 ends near zero. `scale = time/attack` was floored at 1 — the comment claimed that
+  avoided "ending at peak velocity", but scale 1 is exactly pure acceleration ending at peak.
+  The existing test only asserted monotonicity + full distance, not ease-out.
+- Root cause 2: `SmoothScrollEngine.Tick` recomputed every queued pulse with the latest push's
+  settings (`_cachedSettings`), so switching time/easing mid-flight changed older pulses' targets
+  (e.g. linear→eased drops the target below `Emitted` → negative contribution).
+- Fix: `PulseRaw` floors scale at `MinimumPulseScale` (2) and uses tail decay
+  `max(scale-1, 3)` with a gain keeping C¹ continuity — identical to Herf for scale ≥ 4.
+  `PulseItem` now stores `AnimationTimeMs`/`PulseScale`/`UseEasing` at push; `Tick(nowMs)` no
+  longer takes settings. UI disables Start smoothing / Tail-head when they have no effect.
+- Avoid: when testing an easing curve, assert end-velocity vs peak across the whole parameter
+  range, not only monotonicity/total distance. Any per-item animation parameter must be captured
+  per item, never read from shared "latest" state at tick time.
+
 ## 2026-09-22 — Main window still oversized on first open after the 2.2.1 "fix"; real root cause found
 
 - Symptom: after shipping 2.2.1's fix for the oversized-side-margins bug (see the entry below,

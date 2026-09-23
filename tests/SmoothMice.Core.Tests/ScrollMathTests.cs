@@ -234,7 +234,7 @@ public class ScrollMathTests
 
         int total = 0;
         long t = 0;
-        for (int i = 0; i < 500 && !engine.IsQuiet(); i++) { t += 4; total += engine.Tick(t, settings); }
+        for (int i = 0; i < 500 && !engine.IsQuiet(); i++) { t += 4; total += engine.Tick(t); }
 
         Assert.InRange(total, 118, 122);
     }
@@ -248,14 +248,14 @@ public class ScrollMathTests
             { StepSizePx = 80, AnimationTimeMs = 150, TailToHeadRatio = 3, AnimationEasing = true };
 
         var engNoEase = new SmoothScrollEngine();
-        engNoEase.Tick(0, noEase);
+        engNoEase.Tick(0);
         engNoEase.PushPhysicalDelta(120, noEase, 1.0, nowMs: 0);
-        var firstNoEase = Math.Abs(engNoEase.Tick(4, noEase));
+        var firstNoEase = Math.Abs(engNoEase.Tick(4));
 
         var engEase = new SmoothScrollEngine();
-        engEase.Tick(0, ease);
+        engEase.Tick(0);
         engEase.PushPhysicalDelta(120, ease, 1.0, nowMs: 0);
-        var firstEase = Math.Abs(engEase.Tick(4, ease));
+        var firstEase = Math.Abs(engEase.Tick(4));
 
         Assert.True(firstNoEase > firstEase,
             $"No-easing first tick ({firstNoEase}) should exceed easing ({firstEase})");
@@ -282,7 +282,7 @@ public class ScrollMathTests
         var total = 0;
         for (var tick = 0; tick < 2_000 && !engine.IsQuiet(); tick++)
         {
-            var delta = engine.Tick(tick * 4L, settings);
+            var delta = engine.Tick(tick * 4L);
             Assert.InRange(delta, -maximumDeltaPerTick, maximumDeltaPerTick);
             total += Math.Abs(delta);
         }
@@ -308,7 +308,7 @@ public class ScrollMathTests
         for (var i = 0; i < maxTicks && !engine.IsQuiet(); i++)
         {
             t += stepMs;
-            total += engine.Tick(t, settings);
+            total += engine.Tick(t);
         }
         return total;
     }
@@ -341,7 +341,7 @@ public class ScrollMathTests
             while (t < landingOffsetMs)
             {
                 t += 4;
-                combinedTotal += engine.Tick(t, settings);
+                combinedTotal += engine.Tick(t);
             }
 
             engine.PushPhysicalDelta(120, settings, accel: 1.0, nowMs: t);
@@ -377,7 +377,7 @@ public class ScrollMathTests
                 while (t < nextPush)
                 {
                     t += 4;
-                    total += engine.Tick(t, settings);
+                    total += engine.Tick(t);
                 }
             }
             total += (long)RunToQuiet(engine, settings, ref t);
@@ -397,7 +397,7 @@ public class ScrollMathTests
 
         var baseline = new SmoothScrollEngine();
         baseline.PushPhysicalDelta(120, settings, accel: 1.0, nowMs: 0);
-        var baselineFirstTick = Math.Abs(baseline.Tick(4, settings));
+        var baselineFirstTick = Math.Abs(baseline.Tick(4));
 
         var engine = new SmoothScrollEngine();
         engine.PushPhysicalDelta(120, settings, accel: 1.0, nowMs: 0);
@@ -406,12 +406,12 @@ public class ScrollMathTests
         while (!engine.IsQuiet() && t < 100)
         {
             t += 4;
-            lastTick = engine.Tick(t, settings);
+            lastTick = engine.Tick(t);
         }
         Assert.False(engine.IsQuiet(), "test setup should catch the engine mid-animation, not fully settled");
 
         engine.PushPhysicalDelta(120, settings, accel: 1.0, nowMs: t);
-        var tickAfterLanding = Math.Abs(engine.Tick(t + 4, settings));
+        var tickAfterLanding = Math.Abs(engine.Tick(t + 4));
 
         // Expect roughly "old tail's own next contribution" + "a fresh pulse's first tick",
         // not a spike far beyond that sum.
@@ -441,7 +441,7 @@ public class ScrollMathTests
         for (var i = 0; i < 200 && !coarse.IsQuiet(); i++)
         {
             tc += 40;
-            coarseTotal += coarse.Tick(tc, settings);
+            coarseTotal += coarse.Tick(tc);
         }
 
         Assert.InRange(Math.Abs(coarseTotal), regularTotal - 4, regularTotal + 4);
@@ -465,8 +465,8 @@ public class ScrollMathTests
         for (var i = 0; i < 200 && !(engRatio.IsQuiet() && engZero.IsQuiet()); i++)
         {
             t += 4;
-            var a = engRatio.Tick(t, settingsRatioOnly);
-            var b = engZero.Tick(t, settingsExplicitZero);
+            var a = engRatio.Tick(t);
+            var b = engZero.Tick(t);
             Assert.Equal(a, b);
         }
     }
@@ -493,7 +493,7 @@ public class ScrollMathTests
             for (var i = 0; i < 200 && !engine.IsQuiet(); i++)
             {
                 t += 4;
-                var v = Math.Abs(engine.Tick(t, settings));
+                var v = Math.Abs(engine.Tick(t));
                 if (v > peakValue)
                 {
                     peakValue = v;
@@ -531,7 +531,7 @@ public class ScrollMathTests
             while (t < landingOffsetMs)
             {
                 t += 4;
-                combinedTotal += engine.Tick(t, settings);
+                combinedTotal += engine.Tick(t);
             }
 
             engine.PushPhysicalDelta(120, settings, accel: 1.0, nowMs: t);
@@ -547,7 +547,7 @@ public class ScrollMathTests
     {
         var settings = PulseTestSettings();
         settings.AnimationTimeMs = 150;
-        settings.AttackTimeMs = 5000; // clamped to animationTimeMs -> scale floored at 1
+        settings.AttackTimeMs = 5000; // clamped to animationTimeMs, then scale floored at MinimumPulseScale
 
         var engine = new SmoothScrollEngine();
         engine.PushPhysicalDelta(120, settings, accel: 1.0, nowMs: 0);
@@ -558,7 +558,7 @@ public class ScrollMathTests
         for (var i = 0; i < 500 && !engine.IsQuiet(); i++)
         {
             t += 4;
-            total += engine.Tick(t, settings);
+            total += engine.Tick(t);
             var absTotal = Math.Abs(total);
             Assert.True(absTotal >= prevAbsTotal - 1e-6, "cumulative emitted distance should be monotone");
             prevAbsTotal = absTotal;
@@ -590,5 +590,106 @@ public class ScrollMathTests
         const double h = 1e-4;
         var derivativeNearZero = (SmoothScrollEngine.Pulse(h, scale) - SmoothScrollEngine.Pulse(0, scale)) / h;
         Assert.True(derivativeNearZero < 0.01, $"derivative near t=0 should be ~0, got {derivativeNearZero:F5}");
+    }
+
+    // ── Pulse ease-out at every scale ─────────────────────────────────────
+
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.5)]
+    [InlineData(2.0)]
+    [InlineData(3.0)]
+    [InlineData(4.0)]
+    [InlineData(13.0)]
+    public void Pulse_eases_out_to_near_zero_velocity_at_the_end_for_every_scale(double scale)
+    {
+        // Regression: the curve is cut at t=1, and for scale < 4 the Herf tail was truncated
+        // mid-decay — scale 1 (Start smoothing >= Animation time) ended at PEAK velocity and
+        // stopped dead. Every pulse must now end at a small fraction of its peak velocity.
+        const double h = 1e-4;
+        double peak = 0;
+        for (var t = 0.0; t + h <= 1.0; t += 0.001)
+            peak = Math.Max(peak, (SmoothScrollEngine.Pulse(t + h, scale) - SmoothScrollEngine.Pulse(t, scale)) / h);
+
+        var endVelocity = (SmoothScrollEngine.Pulse(1.0 - h, scale) - SmoothScrollEngine.Pulse(1.0 - 2 * h, scale)) / h;
+
+        Assert.True(endVelocity <= 0.06 * peak,
+            $"scale {scale}: end velocity {endVelocity:F4} should be <= 6% of peak {peak:F4}");
+    }
+
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(2.0)]
+    [InlineData(3.0)]
+    public void PulseRaw_is_C1_continuous_at_the_head_tail_junction(double scale)
+    {
+        var effective = Math.Max(scale, SmoothScrollEngine.MinimumPulseScale);
+        var junction = 1.0 / effective;
+        const double h = 1e-7;
+
+        var before = (SmoothScrollEngine.PulseRaw(junction, scale) - SmoothScrollEngine.PulseRaw(junction - h, scale)) / h;
+        var after = (SmoothScrollEngine.PulseRaw(junction + h, scale) - SmoothScrollEngine.PulseRaw(junction, scale)) / h;
+
+        Assert.InRange(after, before * 0.999, before * 1.001);
+    }
+
+    [Fact]
+    public void PulseRaw_is_unchanged_for_legacy_scales()
+    {
+        // scale >= 4 (the default and anything with Start smoothing <= Animation time / 4) must
+        // keep the exact original Herf curve.
+        static double Legacy(double x, double scale)
+        {
+            x *= scale;
+            if (x < 1.0) return x - (1.0 - Math.Exp(-x));
+            var start = Math.Exp(-1.0);
+            x -= 1.0;
+            return start + (1.0 - Math.Exp(-x)) * (1.0 - start);
+        }
+
+        foreach (var scale in new[] { 4.0, 5.0, 13.0 })
+            for (var t = 0.0; t <= 1.0; t += 0.01)
+                Assert.Equal(Legacy(t, scale), SmoothScrollEngine.PulseRaw(t, scale), 12);
+    }
+
+    // ── Per-pulse curve parameters ────────────────────────────────────────
+
+    [Fact]
+    public void Pulses_keep_their_own_curve_when_a_later_push_uses_different_settings()
+    {
+        // Regression: Tick used to reshape EVERY queued pulse with the settings of the latest
+        // push. A notch landing in a window with another profile (easing on, longer time) made
+        // the earlier linear pulse's target fall below what it had already emitted — a backwards
+        // tick — and stretched its remaining duration.
+        var linearFast = PulseTestSettings();
+        linearFast.AnimationEasing = false;
+        linearFast.AnimationTimeMs = 100;
+
+        var easedSlow = PulseTestSettings();
+        easedSlow.AnimationTimeMs = 400;
+
+        var engine = new SmoothScrollEngine();
+        engine.PushPhysicalDelta(120, linearFast, accel: 1.0, nowMs: 0);
+        long now = 0;
+        double total = 0;
+        for (var i = 0; i < 10; i++) { now += 4; total += engine.Tick(now); }
+
+        engine.PushPhysicalDelta(120, easedSlow, accel: 1.0, nowMs: now);
+
+        var sawNegative = false;
+        for (var i = 0; i < 500 && !engine.IsQuiet(); i++)
+        {
+            now += 4;
+            var d = engine.Tick(now);
+            if (d < 0) sawNegative = true;
+            total += d;
+        }
+
+        Assert.False(sawNegative, "a same-direction push must never produce a backwards tick");
+        // 2 × 120 × StepScale(80)=4 → 960 units, delivered in full.
+        Assert.InRange(total, 956, 964);
+        // Each pulse keeps its own duration: the second (eased, 400 ms, pushed at 40 ms) is the
+        // last to finish, at ~440 ms.
+        Assert.InRange(now, 436, 448);
     }
 }

@@ -272,8 +272,8 @@ public sealed class ScrollCoordinator : IDisposable
             sessionGeneration = _sessionGeneration;
 
             var now = EnvironmentEx.TickCount64;
-            dv = _vertical.Tick(now, settings);
-            dh = _horizontal.Tick(now, settings);
+            dv = _vertical.Tick(now);
+            dh = _horizontal.Tick(now);
 
             if (_vertical.IsQuiet() && _horizontal.IsQuiet())
             {
