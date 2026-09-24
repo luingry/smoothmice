@@ -107,6 +107,22 @@ public static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool GetCursorPos(out POINT lpPoint);
 
+    // CURSORINFO.flags: clear while the pointer is hidden (ShowCursor(FALSE), typical in games).
+    public const uint CursorShowing = 0x00000001;
+
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorInfo(ref CURSORINFO pci);
+
+    // Wheel routing (Settings › "Scroll inactive windows when hovering"): 0 = focus, 2 = hover.
+    public const uint SpiGetMouseWheelRouting = 0x201C;
+    public const uint SpiSetMouseWheelRouting = 0x201D;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref uint pvParam, uint fWinIni);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
+
     [DllImport("gdi32.dll")]
     public static extern bool DeleteObject(IntPtr hObject);
 
@@ -182,6 +198,15 @@ public static class NativeMethods
         public RECT rcMonitor;
         public RECT rcWork;
         public uint dwFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CURSORINFO
+    {
+        public uint   cbSize;
+        public uint   flags;
+        public IntPtr hCursor;
+        public POINT  ptScreenPos;
     }
 
     [StructLayout(LayoutKind.Sequential)]

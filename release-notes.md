@@ -4,6 +4,20 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.2.6 — 2026-09-24
+
+### Fixed — Wheel inside a game leaked to apps on the second monitor
+
+- **Scrolling in a game could scroll windows on another monitor instead.** Games hide the pointer
+  without confining it, so the invisible cursor drifts onto a second monitor and Windows' "scroll
+  inactive windows when hovering" delivers the wheel to the app there (this happened even with
+  SmoothMice off). While a fullscreen/borderless window with a hidden pointer is in the foreground
+  and the cursor is over another window, SmoothMice now switches wheel routing to the focused
+  window at runtime and restores it as soon as that no longer holds (and on exit). The persisted
+  Windows setting is never changed.
+- **An animation no longer finishes on another window if the cursor leaves the target mid-scroll**:
+  remaining steps are posted to the original target instead of following the cursor.
+
 ## 2.2.5 — 2026-09-24
 
 ### Fixed — Winput LAN wheel still ignored in 2.2.4

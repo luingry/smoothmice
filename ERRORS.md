@@ -1,5 +1,27 @@
 # Resolved errors
 
+## 2026-09-24 — Wheel inside a game leaked to apps on the second monitor
+
+- Symptom: scrolling inside a fullscreen/windowed game (Dying Light: The Beast) sometimes
+  scrolled apps on the second monitor too.
+- First (wrong) fix: assumed SmoothMice's `WindowFromPoint` targeting was the cause and made it
+  pass the event through to Windows. No change — the user then confirmed the leak happens with
+  SmoothMice disabled.
+- Real root cause (measured with a throwaway `WH_MOUSE_LL` probe logging cursor/foreground state
+  per wheel): the game is borderless 2560x1080, hides the pointer (`CURSORINFO.flags == 0`), reads
+  raw input, and neither captures the mouse nor calls `ClipCursor` (clip = whole virtual screen).
+  The invisible cursor drifts onto the second monitor and Windows' own hover wheel routing
+  (`MouseWheelRouting = 2`) delivers `WM_MOUSEWHEEL` to the window there.
+- Solution: `ForegroundMouseOwnership` — when the pointer is hidden, the foreground fills its
+  monitor and the window under the cursor is a different root, switch routing to focus with
+  `SPI_SETMOUSEWHEELROUTING` (runtime only, no `SPIF_UPDATEINIFILE`); the event that triggered
+  the switch is swallowed and replayed via `SendInput`. Routing is restored on the next wheel that
+  doesn't match, on `Stop`, and on startup from the persisted registry value (crash recovery).
+  Also kept: `TickCore` falls back from `SendInput` to `PostMessage` to the cached target when the
+  cursor has left it mid-animation.
+- Prevention: before fixing a "leak" in an input hook, check whether it reproduces with the app
+  disabled, and measure the real window/cursor state instead of assuming the game clips the cursor.
+
 ## 2026-09-24 — Wheel replayed by Winput LAN was never smoothed
 
 - Symptom: on a PC controlled through Winput LAN, remote wheel scrolls passed through unsmoothed

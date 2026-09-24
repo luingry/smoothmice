@@ -30,6 +30,7 @@ public sealed class ScrollCoordinator : IDisposable
     private readonly ScrollInjector _injector;
     private readonly ActiveAppResolver _apps;
     private readonly object _gate = new();
+    private readonly ForegroundMouseOwnership _mouseOwnership = new();
 
     private readonly SmoothScrollEngine _vertical   = new();
     private readonly SmoothScrollEngine _horizontal = new();
@@ -123,6 +124,7 @@ public sealed class ScrollCoordinator : IDisposable
             if (!_running) return;
             DisarmTimer();              // stops tick + releases 1ms period
             _hook.Uninstall();
+            _mouseOwnership.Restore();
             _vertical.Reset();
             _horizontal.Reset();
             ResetEwma();
@@ -162,6 +164,25 @@ public sealed class ScrollCoordinator : IDisposable
 
         // Resolve against the window UNDER THE CURSOR (not the foreground window).
         var hwndTarget = NativeMethods.WindowFromPoint(e.ScreenPoint);
+
+        // A fullscreen game hid the pointer and it drifted onto another monitor: the window under
+        // it is not what the user is scrolling, and Windows' hover routing would scroll it anyway.
+        // Route the wheel to the focused game instead and leave the event unsmoothed.
+        if (ForegroundMouseOwnership.ShouldRouteToForeground(hwndTarget))
+        {
+            if (_mouseOwnership.EnsureFocusRouting())
+            {
+                // This event was already routed under the old setting — swallow it and replay it
+                // off the hook thread so the new focus routing (and the game's raw input) gets it.
+                e.Handled = true;
+                var delta = e.Delta;
+                var horizontal = e.IsHorizontal;
+                System.Threading.ThreadPool.QueueUserWorkItem(
+                    _ => _injector.TryInjectWheel(delta, horizontal));
+            }
+            return;
+        }
+        _mouseOwnership.Restore();
 
         // This opt-in is evaluated before profile resolution, interception, or e.Handled. A
         // conservative positive leaves the original physical event entirely to Windows/the game.
@@ -291,6 +312,16 @@ public sealed class ScrollCoordinator : IDisposable
         bool targetFocused = rootOfTarget != IntPtr.Zero && rootOfTarget == foreground;
         bool useSendInput  = targetFocused || isElevated;
 
+        // SendInput is routed by Windows to the window under the CURRENT cursor. If the cursor
+        // has since left the target (e.g. a game's hidden cursor drifting onto another monitor),
+        // SendInput would scroll that other window. Post to the cached target instead, or drop
+        // the delta when UIPI makes posting impossible.
+        if (useSendInput && !CursorIsOverRoot(rootOfTarget))
+        {
+            if (isElevated) return;
+            useSendInput = false;
+        }
+
         // Do not hold _gate across SendInput/PostMessage. In the foreground path this is
         // SendInput, and a FreeSpin burst can otherwise make WH_MOUSE_LL wait behind a native
         // injection on every 4 ms tick. Cancellation invalidates the session and clears both
@@ -309,6 +340,15 @@ public sealed class ScrollCoordinator : IDisposable
             if (dv != 0) _injector.TryPostWheel(hwnd, dv, horizontal: false, shiftDown, screenPt);
             if (dh != 0) _injector.TryPostWheel(hwnd, dh, horizontal: true,  shiftDown, screenPt);
         }
+    }
+
+    private static bool CursorIsOverRoot(IntPtr root)
+    {
+        if (root == IntPtr.Zero || !NativeMethods.GetCursorPos(out var pt))
+            return false;
+
+        var under = NativeMethods.WindowFromPoint(pt);
+        return under != IntPtr.Zero && NativeMethods.GetAncestor(under, NativeMethods.GaRoot) == root;
     }
 
     // ── Timer arm / disarm — must be called under _gate ────────────────────
