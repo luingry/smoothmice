@@ -14,6 +14,8 @@ public sealed class MouseHookService : IDisposable
 
     public bool IsInstalled => _hook != IntPtr.Zero;
 
+    internal WheelInjectionGuard? InjectionGuard { get; set; }
+
     public event EventHandler<MouseWheelHookEventArgs>? MouseWheel;
 
     /// <summary>
@@ -75,12 +77,18 @@ public sealed class MouseHookService : IDisposable
         if (nCode >= 0)
         {
             var msg = wParam.ToInt32();
-            var needsWheel = MouseWheel is not null || _scrollPulseLogger is not null || ScrollPulseCaptured is not null;
+            var needsWheel = MouseWheel is not null || _scrollPulseLogger is not null || ScrollPulseCaptured is not null || InjectionGuard is not null;
             var needsPhysical = PhysicalInputCaptured is not null;
             var isWheel = msg is NativeMethods.WmMousewheel or NativeMethods.WmMousehwheel;
             if ((needsWheel && isWheel) || (needsPhysical && IsPhysicalMessage(msg)))
             {
                 var info = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+
+                // SendInput may have started before a physical reversal was handled. Reject
+                // stale own output here, at actual hook delivery, not only before SendInput.
+                if (isWheel && (info.flags & NativeMethods.LlmhfInjected) != 0 &&
+                    InjectionGuard?.ShouldSuppress(info.dwExtraInfo, msg == NativeMethods.WmMousehwheel) == true)
+                    return (IntPtr)1;
 
                 // Skip events we injected ourselves via SendInput — prevents re-processing
                 // our own smoothed events and potentially double-smoothing them.

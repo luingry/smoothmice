@@ -78,7 +78,10 @@ public class StabilityRegressionTests
             Assert.Equal(0, vertical.Tick(1000));
             Assert.Equal(0, horizontal.Tick(1000));
             vertical.PushPhysicalDelta(120, settings, 1, 1000);
-            Assert.Equal((int)(120 * ScrollMath.StepScale(settings.StepSizePx)), vertical.Tick(2000));
+            int total = 0;
+            for (long now = 1004; now <= 2000 && !vertical.IsQuiet(); now += 4)
+                total += vertical.Tick(now);
+            Assert.Equal((int)(120 * ScrollMath.StepScale(settings.StepSizePx)), total);
         }
     }
 }

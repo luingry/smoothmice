@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- Versão semver da app + instalador; única fonte de verdade (bump manual com commits). -->
-    <Version>2.2.7-test.1</Version>
+    <Version>2.2.8</Version>
     <TargetFramework>net48</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

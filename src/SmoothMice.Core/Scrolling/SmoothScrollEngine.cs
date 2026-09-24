@@ -8,13 +8,13 @@ namespace SmoothMice.Core.Scrolling;
 /// stereopsis.com). Re-implemented from the public algorithm description, not decompiled.
 ///
 /// Every physical wheel notch becomes its own independent queue item with its own start
-/// timestamp and total distance. Each tick, every item computes its progress from REAL elapsed
-/// time independently, and their contributions are SUMMED (superposition). This replaces an
+/// timestamp and total distance. Each tick, every item advances by elapsed time, with bounded
+/// recovery after stalls, and their contributions are SUMMED (superposition). This replaces an
 /// earlier single-shared-state model (one scalar "remaining" plus one persistent "speed" ramp)
 /// that was structurally history-dependent: what a new notch emitted on its first tick depended
 /// on the ramp state left behind by whatever had been animating before it, causing visible
-/// jumps/spikes when a notch landed mid-animation. A pulse queue is linear and time-invariant —
-/// each item always delivers exactly its own distance over exactly its own duration, regardless
+/// jumps/spikes when a notch landed mid-animation. At ordinary cadence the pulses superpose:
+/// each item delivers its own distance along its own curve, regardless
 /// of what else is in flight, so there is nothing for a new item to inherit.
 ///
 /// There must be NO "merge", "nudge", "reset speed", or "negligible tail" heuristics here — that
@@ -28,6 +28,10 @@ public sealed class SmoothScrollEngine
     // turn into an unbounded post-scroll backlog or an out-of-range injection delta.
     public const int MaximumPendingDeltaUnits = 48_000;
     public const int MaximumDeltaPerTick = 1_920;
+
+    // At most two nominal 4 ms frames of progress in one delivery. A scheduler stall extends
+    // the pulse instead of dumping all missed distance in a single input event.
+    public const int MaximumAnimationAdvanceMs = 8;
 
     // Bound on queued pulses. A FreeSpin burst can enqueue far faster than the 4 ms tick can
     // drain; each item is nearly weightless once distance/emitted is small, so when full we fold
@@ -48,7 +52,8 @@ public sealed class SmoothScrollEngine
     private struct PulseItem
     {
         public double Distance; // total signed units this pulse will deliver
-        public long StartMs;
+        public long LastTickMs;
+        public long AnimationElapsedMs;
         public double Emitted; // signed units already delivered (== Distance when t >= 1)
 
         // Curve parameters captured when the pulse is pushed. Each pulse keeps its own shape for
@@ -108,7 +113,8 @@ public sealed class SmoothScrollEngine
         _queue.Add(new PulseItem
         {
             Distance = units,
-            StartMs = nowMs,
+            LastTickMs = nowMs,
+            AnimationElapsedMs = 0,
             Emitted = 0.0,
             AnimationTimeMs = Math.Max(1, settings.AnimationTimeMs),
             PulseScale = PulseScaleFor(settings),
@@ -130,22 +136,25 @@ public sealed class SmoothScrollEngine
             : 1.0 + Math.Min(Math.Max(settings.TailToHeadRatio, 0.5), 12.0);
     }
 
-    /// <summary>Advance animation by one tick using real elapsed time; returns signed wheel-delta units to inject.</summary>
+    /// <summary>Advance animation by elapsed time (bounded after stalls); returns signed wheel-delta units to inject.</summary>
     public int Tick(long nowMs)
     {
         if (_queue.Count == 0) return 0;
 
-        // First pass: each item's contribution is purely a function of real elapsed time,
-        // independent of every other item (superposition) — compute the ideal, uncapped
-        // per-item contribution and sum it.
+        // Advance each pulse independently. Ordinary cadence keeps the original curve exactly;
+        // late callbacks stretch its remaining duration rather than concentrating the backlog.
         var count = _queue.Count;
         var idealTargets = _tickTargets;
         double rawSum = 0;
         for (var i = 0; i < count; i++)
         {
             var item = _queue[i];
-            var t = (nowMs - item.StartMs) / (double)item.AnimationTimeMs;
-            if (t < 0) t = 0;
+            var elapsed = nowMs > item.LastTickMs ? nowMs - item.LastTickMs : 0;
+            item.LastTickMs = Math.Max(item.LastTickMs, nowMs);
+            item.AnimationElapsedMs = Math.Min(item.AnimationTimeMs,
+                item.AnimationElapsedMs + Math.Min(elapsed, MaximumAnimationAdvanceMs));
+            _queue[i] = item;
+            var t = item.AnimationElapsedMs / (double)item.AnimationTimeMs;
 
             var target = t >= 1.0
                 ? item.Distance // guarantee the full distance is eventually delivered, no drift

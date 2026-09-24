@@ -46,7 +46,7 @@ public sealed class ScrollInjector
     /// entirely — the elevated window receives the smooth scroll correctly.
     /// The injected event carries <c>LLMHF_INJECTED</c> so our hook skips it.
     /// </summary>
-    public bool TryInjectWheel(int deltaUnits, bool horizontal)
+    public bool TryInjectWheel(int deltaUnits, bool horizontal, int injectionStamp = 0)
     {
         if (deltaUnits == 0) return false;
 
@@ -57,6 +57,7 @@ public sealed class ScrollInjector
             {
                 Flags     = horizontal ? NativeMethods.MOUSEEVENTF_HWHEEL : NativeMethods.MOUSEEVENTF_WHEEL,
                 MouseData = (uint)deltaUnits,
+                ExtraInfo = new IntPtr(injectionStamp),
             }
         };
 

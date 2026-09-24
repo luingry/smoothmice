@@ -4,6 +4,12 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.2.8 — 2026-09-24
+
+- Uses a dedicated worker and native high-resolution waitable timer for the 4 ms scroll cadence, with a compatibility fallback and no periodic idle work.
+- Limits each pulse's animation advance to 8 ms per tick after a scheduler stall. Distance is retained, with extra completion time instead of a catch-up jump.
+- Tags injected ticks with per-axis epochs and rejects obsolete output in the mouse hook after a reversal or target change. Background PostMessage admission is serialized without holding the hook lock across SendInput.
+
 ## 2.2.7-test.1 — 2026-09-24 (local test build, not released)
 
 - Tray Enable/Disable now synchronizes the selected global profile before saving, so persistence cannot undo the toggle.

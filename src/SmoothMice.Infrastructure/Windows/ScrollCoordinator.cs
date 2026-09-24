@@ -9,19 +9,18 @@ namespace SmoothMice.Infrastructure.Windows;
 /// <remarks>
 /// Performance design — zero idle overhead:
 ///
-///   The tick timer and timeBeginPeriod(1) are ONLY active while there is motion to animate.
+///   The native tick timer is ONLY active while there is motion to animate. Its dedicated
+///   worker blocks on wait handles during idle. Older Windows use a timer-resolution fallback.
 ///
-///   • <c>OnMouseWheel</c>: arms the timer (and requests 1 ms scheduler period) on the
+///   • <c>OnMouseWheel</c>: arms the timer on the
 ///     first event after an idle period.  Caches <see cref="ScrollProfileSettings"/> so
-///     <c>TickCore</c> never calls <c>GetForegroundWindow</c>, <c>ResolveForExecutable</c>,
-///     or <c>ProfileManager.Snapshot</c> — those are expensive per-call and have no place
-///     in a 4 ms hot loop.
+///     <c>TickCore</c> never resolves profiles or clones the settings tree. Lightweight
+///     native focus/cursor checks still run before delivery.
 ///
 ///   • <c>TickCore</c>: uses the cached settings; after the tick, if both engines report
-///     IsQuiet it disarms the timer and releases the 1 ms period.
+///     IsQuiet it disarms the timer.
 ///
-///   Net result during idle: 0 Win32 calls/second, default system timer resolution restored.
-///   Net result while scrolling: 1 ms period + 4 ms tick, exactly as needed for smooth animation.
+///   No periodic idle work. Active cadence targets 4 ms without depending on ThreadPool timers.
 /// </remarks>
 public sealed class ScrollCoordinator : IDisposable
 {
@@ -35,11 +34,11 @@ public sealed class ScrollCoordinator : IDisposable
     private readonly SmoothScrollEngine _vertical   = new();
     private readonly SmoothScrollEngine _horizontal = new();
 
-    private System.Threading.Timer? _tickTimer;
+    private ScrollTickScheduler? _tickTimer;
     private bool _running;
     private int  _ticking;
-    private bool _timerPeriodSet;
     private long _sessionGeneration;
+    private readonly WheelInjectionGuard _injectionGuard = new();
 
     // Diagnostics only — read by the Scroll logs window to help tell apart "the engine math
     // emitted a small delta" from "a scheduled tick never ran at all" (e.g. the reentrancy guard
@@ -95,6 +94,7 @@ public sealed class ScrollCoordinator : IDisposable
         _hook     = hook;
         _injector = injector;
         _apps     = apps;
+        _hook.InjectionGuard = _injectionGuard;
         _hook.MouseWheel += OnMouseWheel;
         _profiles.SettingsChanged += OnSettingsChanged;
     }
@@ -108,10 +108,8 @@ public sealed class ScrollCoordinator : IDisposable
 
             // Timer starts STOPPED.  It is armed in OnMouseWheel the moment a wheel
             // event arrives, and disarmed again when both engines become quiet.
-            // This means the 4 ms tick and the 1 ms scheduler period are only
-            // active while there is motion to animate — zero idle overhead.
-            _tickTimer ??= new System.Threading.Timer(_ => Tick(), null,
-                Timeout.Infinite, Timeout.Infinite);
+            // The worker sleeps until there is motion to animate.
+            _tickTimer ??= new ScrollTickScheduler(Tick);
 
             _running = true;
         }
@@ -122,7 +120,7 @@ public sealed class ScrollCoordinator : IDisposable
         lock (_gate)
         {
             if (!_running) return;
-            DisarmTimer();              // stops tick + releases 1ms period
+            DisarmTimer();
             _hook.Uninstall();
             _mouseOwnership.Restore();
             _vertical.Reset();
@@ -132,6 +130,7 @@ public sealed class ScrollCoordinator : IDisposable
             _cachedHwnd       = IntPtr.Zero;
             _cachedIsElevated = false;
             _sessionGeneration++;
+            _injectionGuard.Invalidate();
             _running = false;
         }
     }
@@ -220,6 +219,7 @@ public sealed class ScrollCoordinator : IDisposable
         lock (_gate)
         {
             PrepareTarget(hwndTarget);
+            _injectionGuard.ObserveInput(hwndTarget, e.Delta, e.IsHorizontal);
             var wasQuiet = _vertical.IsQuiet() && _horizontal.IsQuiet();
 
             UpdateEwma(now, settings, wasQuiet);
@@ -295,6 +295,7 @@ public sealed class ScrollCoordinator : IDisposable
         bool                isElevated;
         long                sessionGeneration;
         int dv, dh;
+        int verticalStamp, horizontalStamp;
 
         lock (_gate)
         {
@@ -305,6 +306,8 @@ public sealed class ScrollCoordinator : IDisposable
             screenPt   = _cachedScreenPt;
             isElevated = _cachedIsElevated;
             sessionGeneration = _sessionGeneration;
+            verticalStamp = _injectionGuard.Capture(horizontal: false);
+            horizontalStamp = _injectionGuard.Capture(horizontal: true);
 
             var now = EnvironmentEx.TickCount64;
             dv = _vertical.Tick(now);
@@ -336,23 +339,34 @@ public sealed class ScrollCoordinator : IDisposable
             useSendInput = false;
         }
 
-        // Do not hold _gate across SendInput/PostMessage. In the foreground path this is
+        // Do not hold _gate across SendInput. In the foreground path this is
         // SendInput, and a FreeSpin burst can otherwise make WH_MOUSE_LL wait behind a native
         // injection on every 4 ms tick. Cancellation invalidates the session and clears both
-        // engines; at most this already-calculated, bounded tick can race with the cancellation.
+        // engines. Per-axis stamps are checked again inside WH_MOUSE_LL, which also rejects
+        // stale SendInput packets whose native call began before a physical reversal.
         if (sessionGeneration != System.Threading.Volatile.Read(ref _sessionGeneration))
             return;
 
         if (useSendInput)
         {
-            if (dv != 0) _injector.TryInjectWheel(dv, horizontal: false);
-            if (dh != 0) _injector.TryInjectWheel(dh, horizontal: true);
+            if (dv != 0 && _injectionGuard.IsCurrent(verticalStamp, horizontal: false))
+                _injector.TryInjectWheel(dv, horizontal: false, verticalStamp);
+            if (dh != 0 && _injectionGuard.IsCurrent(horizontalStamp, horizontal: true))
+                _injector.TryInjectWheel(dh, horizontal: true, horizontalStamp);
         }
         else
         {
             var shiftDown = NativeMethods.GetKeyState(NativeMethods.VkShift) < 0;
-            if (dv != 0) _injector.TryPostWheel(hwnd, dv, horizontal: false, shiftDown, screenPt);
-            if (dh != 0) _injector.TryPostWheel(hwnd, dh, horizontal: true,  shiftDown, screenPt);
+            // PostMessage is nonblocking and never calls WH_MOUSE_LL. Serialize only this
+            // admission with physical input; never hold _gate across SendInput above.
+            lock (_gate)
+            {
+                if (sessionGeneration != _sessionGeneration) return;
+                if (dv != 0 && _injectionGuard.IsCurrent(verticalStamp, horizontal: false))
+                    _injector.TryPostWheel(hwnd, dv, horizontal: false, shiftDown, screenPt);
+                if (dh != 0 && _injectionGuard.IsCurrent(horizontalStamp, horizontal: true))
+                    _injector.TryPostWheel(hwnd, dh, horizontal: true, shiftDown, screenPt);
+            }
         }
     }
 
@@ -369,24 +383,12 @@ public sealed class ScrollCoordinator : IDisposable
 
     private void ArmTimer()
     {
-        if (!_timerPeriodSet)
-        {
-            // Request 1 ms system timer resolution so the 4 ms tick fires at ~4 ms.
-            // Only active while we are animating; released in DisarmTimer().
-            NativeMethods.timeBeginPeriod(1);
-            _timerPeriodSet = true;
-        }
-        _tickTimer?.Change(4, 4);
+        _tickTimer?.Start();
     }
 
     private void DisarmTimer()
     {
-        _tickTimer?.Change(Timeout.Infinite, Timeout.Infinite);
-        if (_timerPeriodSet)
-        {
-            NativeMethods.timeEndPeriod(1);
-            _timerPeriodSet = false;
-        }
+        _tickTimer?.Stop();
     }
 
     // ── EWMA — must be called under _gate ───────────────────────────────────
@@ -431,6 +433,7 @@ public sealed class ScrollCoordinator : IDisposable
             _cachedIsElevated = false;
             ResetEwma();
             _sessionGeneration++;
+            _injectionGuard.Invalidate();
         }
     }
 
@@ -443,6 +446,7 @@ public sealed class ScrollCoordinator : IDisposable
             _tickTimer = null;
         }
         _hook.MouseWheel -= OnMouseWheel;
+        if (ReferenceEquals(_hook.InjectionGuard, _injectionGuard)) _hook.InjectionGuard = null;
         _profiles.SettingsChanged -= OnSettingsChanged;
     }
 }

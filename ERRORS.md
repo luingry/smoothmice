@@ -1,5 +1,13 @@
 # Resolved errors
 
+## 2026-09-24 — ThreadPool timer cadence, stall catch-up spikes, and stale reversed ticks
+
+- Symptoms: the net48 4 ms System.Threading.Timer measured about 17 ms locally; a 100 ms stall concentrated a default pulse into a 405-unit tick (regular peak 33); a previously calculated tick could race a direction reversal.
+- Causes: timeBeginPeriod does not provide the requested ThreadPool timer cadence here; absolute animation progress dumped elapsed backlog; pre-SendInput generation checks cannot retract a native call already waiting for hook delivery, and direction changes did not invalidate that output.
+- Solution: a single background worker waits on a native one-shot high-resolution timer (ordinary waitable timer plus active-only resolution fallback on older Windows). Per-pulse elapsed progress advances at most 8 ms per tick, extending completion after stalls while retaining distance. Per-axis output stamps are checked again in WH_MOUSE_LL; stale own injected wheel events are swallowed. PostMessage admission is serialized under the coordinator gate; SendInput is still outside it to avoid the historical input deadlock.
+- Evidence: four delay-recovery cases fail before and pass after the change; hook tests block delivery, reverse direction and verify stale packets are swallowed without waiting on the sender. Scheduler lifecycle tests cover idle, stop, restart, disposal and fallback. Local net48 scheduler measurement: high-resolution median 4.079 ms, P95 4.407 ms; fallback median 4.078 ms. Timing remains OS-scheduled, not a hard real-time guarantee.
+- Prevention: measure the production runtime, test peak delivery as well as conserved totals, and validate cancellation at native delivery boundaries. A message already posted to a target or already delivered before the physical reversal cannot be retracted. User confirmed consistent behavior in 2.2.8-test.1 and approved the stable release.
+
 ## 2026-09-24 — Tray toggle overwritten by the selected global editor
 
 - Symptom: Disable in the tray reverted to enabled when the global profile was selected.
