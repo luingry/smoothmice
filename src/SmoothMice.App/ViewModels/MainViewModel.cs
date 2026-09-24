@@ -360,6 +360,22 @@ public sealed class MainViewModel : ViewModelBase
         SelectedProfile = selected.Clone();
     }
 
+    public void ToggleGlobalEnabled()
+    {
+        // Commit edits before changing the manager, then keep the editor's copy in sync so
+        // Persist/Save cannot overwrite the tray command with a stale Enabled value.
+        Save();
+        var global = _manager.Snapshot.Profiles.First(p => p.IsGlobal);
+        global.Settings.Enabled = !global.Settings.Enabled;
+        _manager.UpsertEditedProfile(global);
+        if (SelectedProfile?.IsGlobal == true)
+        {
+            SelectedProfile.Settings.Enabled = global.Settings.Enabled;
+            Raise(nameof(ProfileEnabled));
+        }
+        _persist();
+    }
+
     public void Save()
     {
         if (SelectedProfile is null) return;

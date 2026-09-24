@@ -219,6 +219,7 @@ public sealed class ScrollCoordinator : IDisposable
 
         lock (_gate)
         {
+            PrepareTarget(hwndTarget);
             var wasQuiet = _vertical.IsQuiet() && _horizontal.IsQuiet();
 
             UpdateEwma(now, settings, wasQuiet);
@@ -249,6 +250,19 @@ public sealed class ScrollCoordinator : IDisposable
             // If already animating the timer is already running — no-op needed.
             if (wasQuiet)
                 ArmTimer();
+        }
+    }
+
+    // Called under _gate before adding a pulse. Pending motion belongs to one exact control,
+    // including child HWNDs within the same app; it must never migrate to another destination.
+    private void PrepareTarget(IntPtr target)
+    {
+        if (_cachedHwnd != IntPtr.Zero && _cachedHwnd != target)
+        {
+            _vertical.Reset();
+            _horizontal.Reset();
+            ResetEwma();
+            _sessionGeneration++;
         }
     }
 

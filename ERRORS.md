@@ -1,5 +1,33 @@
 # Resolved errors
 
+## 2026-09-24 — Tray toggle overwritten by the selected global editor
+
+- Symptom: Disable in the tray reverted to enabled when the global profile was selected.
+- Cause: the tray changed ProfileManager, then Persist called MainViewModel.Save, overwriting it with the editor's old clone.
+- Solution: ToggleGlobalEnabled commits edits first and synchronizes the selected global clone before persistence. App-specific selection and edits are preserved.
+- Prevention: commands that change model state must reconcile editor copies before saving. Regression tests cover both global and app-specific selection and subsequent saves.
+
+## 2026-09-24 — Idle settings window repeatedly performed disk and registry writes
+
+- Symptom: an open settings window traversed controls and persisted settings every 300 ms without changes, on the same dispatcher that owns the mouse hook.
+- Cause: live apply used an always-running periodic DispatcherTimer.
+- Solution: only focused numeric text edits arm a 300 ms debounce; each tick stops the timer. Explicit commit paths remain available.
+- Prevention: schedule persistence from changes, not visibility; verify idle files remain unchanged and edits still save while focused.
+
+## 2026-09-24 — Structurally invalid settings bypassed backup recovery
+
+- Symptom: settings.json containing {"profiles":[null]} parsed successfully but ProfileManager construction threw NullReferenceException.
+- Cause: the repository validated JSON syntax only, and AppSettings.Clone dereferenced each entry outside the recovery path.
+- Solution: reject null profile/settings entries inside TryLoadFrom so existing backup or quarantine/default recovery applies.
+- Prevention: validate required structure before returning persisted state. Regressions cover both a valid backup and no backup.
+
+## 2026-09-24 — New target inherited an earlier control's pending scroll
+
+- Symptom: scrolling over control B while control A still had pending motion transferred A's remaining distance to B.
+- Cause: the coordinator replaced its cached HWND while retaining both engines and acceleration history.
+- Solution: before a different HWND receives a new pulse, clear both engines, reset EWMA and invalidate the prior session generation. Same-target bursts remain continuous.
+- Prevention: animation state belongs to its destination, including child controls. Regression tests check both axes, acceleration reset, stale-tick generation and unchanged same-target motion.
+
 ## 2026-09-24 — Wheel inside a game leaked to apps on the second monitor
 
 - Symptom: scrolling inside a fullscreen/windowed game (Dying Light: The Beast) sometimes

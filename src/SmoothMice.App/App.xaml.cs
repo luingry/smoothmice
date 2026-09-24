@@ -83,13 +83,7 @@ public partial class App : Application
         {
             Current.Dispatcher.Invoke(() =>
             {
-                if (_profiles is null) return;
-                var snap = _profiles.Snapshot;
-                var global = snap.Profiles.FirstOrDefault(p => p.IsGlobal);
-                if (global is null) return;
-                global.Settings.Enabled = !global.Settings.Enabled;
-                _profiles.UpsertEditedProfile(global);
-                Persist();
+                _vm?.ToggleGlobalEnabled();
             });
         };
         _tray.ExitRequested += (_, _) => Shutdown();

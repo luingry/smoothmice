@@ -31,6 +31,7 @@ public partial class MainWindow
         VersionLabel.Text = FormatAppVersion();
         Deactivated += MainWindow_OnDeactivated;
         IsVisibleChanged += MainWindow_OnIsVisibleChanged;
+        AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler(Numeric_OnTextChanged));
     }
 
     /// <summary>
@@ -67,10 +68,17 @@ public partial class MainWindow
 
     private void MainWindow_OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if ((bool)e.NewValue)
-            StartLiveApplyTimer();
-        else
+        if (!(bool)e.NewValue)
             StopLiveApplyTimer();
+    }
+
+    private void Numeric_OnTextChanged(object sender, TextChangedEventArgs e)
+    {
+        // Only actual edits arm live apply. An open, unchanged window does no periodic work.
+        if (!_loaded || !IsVisible || e.OriginalSource is not TextBox { IsKeyboardFocusWithin: true })
+            return;
+        StopLiveApplyTimer();
+        StartLiveApplyTimer();
     }
 
     private void StartLiveApplyTimer()
@@ -93,6 +101,7 @@ public partial class MainWindow
 
     private void LiveApplyTimer_OnTick(object? sender, EventArgs e)
     {
+        StopLiveApplyTimer();
         if (!_loaded) return;
         CommitAllNumericBindings();
         ((App)Application.Current).PersistFromUi();
@@ -351,6 +360,7 @@ public partial class MainWindow
     private void CommitNumericBinding(TextBox? tb)
     {
         if (!_loaded) return;
+        StopLiveApplyTimer();
         if (tb is not null)
             BindingOperations.GetBindingExpression(tb, TextBox.TextProperty)?.UpdateSource();
         ((App)Application.Current).PersistFromUi();

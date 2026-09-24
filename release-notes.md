@@ -4,6 +4,13 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.2.7-test.1 — 2026-09-24 (local test build, not released)
+
+- Tray Enable/Disable now synchronizes the selected global profile before saving, so persistence cannot undo the toggle.
+- Numeric live apply now debounces edits for 300 ms instead of saving every 300 ms while the settings window is idle. Enter, focus loss and closing still commit edits.
+- Valid JSON containing null profile entries now uses backup/default recovery instead of crashing at startup.
+- New wheel input over another control drops the previous target's queued motion and acceleration history, including both axes and already-calculated ticks that have not yet injected.
+
 ## 2.2.6 — 2026-09-24
 
 ### Fixed — Wheel inside a game leaked to apps on the second monitor

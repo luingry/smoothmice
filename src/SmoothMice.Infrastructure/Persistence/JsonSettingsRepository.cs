@@ -93,7 +93,10 @@ public sealed class JsonSettingsRepository
 
             var json = File.ReadAllText(path);
             var loaded = JsonConvert.DeserializeObject<AppSettings>(json, Options);
-            if (loaded is null)
+            // Syntactically valid JSON can still be unusable at startup. Reject invalid
+            // profile entries here, while backup recovery is still available.
+            if (loaded is null || loaded.Profiles is null ||
+                loaded.Profiles.Any(profile => profile is null || profile.Settings is null))
                 return false;
 
             settings = loaded;

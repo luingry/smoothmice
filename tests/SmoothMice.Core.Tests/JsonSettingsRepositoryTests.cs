@@ -7,6 +7,28 @@ namespace SmoothMice.Core.Tests;
 
 public class JsonSettingsRepositoryTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Valid_json_with_null_profile_recovers_without_crashing_startup(bool hasBackup)
+    {
+        var path = NewTempSettingsPath();
+        var repo = new JsonSettingsRepository(path);
+        if (hasBackup)
+        {
+            repo.Save(WithCustomAppProfile());
+            repo.Save(WithCustomAppProfile());
+        }
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "{\"profiles\":[null]}");
+
+        var manager = new ProfileManager(repo.LoadOrCreate());
+        Assert.Contains(manager.Snapshot.Profiles, p => p.IsGlobal);
+        Assert.Equal(hasBackup, manager.Snapshot.Profiles.Any(p => p.Id == "custom-1"));
+        if (!hasBackup)
+            Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!, "settings.json.corrupt-*"));
+    }
+
     private static string NewTempSettingsPath() =>
         Path.Combine(Path.GetTempPath(), $"SmoothMiceTests_{Guid.NewGuid():N}", "settings.json");
 
