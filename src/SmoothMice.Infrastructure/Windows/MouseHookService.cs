@@ -84,7 +84,7 @@ public sealed class MouseHookService : IDisposable
 
                 // Skip events we injected ourselves via SendInput — prevents re-processing
                 // our own smoothed events and potentially double-smoothing them.
-                if ((info.flags & NativeMethods.LlmhfInjected) != 0)
+                if (ShouldIgnoreInjected(info.flags, info.dwExtraInfo))
                     return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
                 if (needsPhysical)
                     PublishPhysicalInput(CreatePhysicalInput(msg, info));
@@ -117,6 +117,20 @@ public sealed class MouseHookService : IDisposable
 
         return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
     }
+
+    /// <summary>
+    /// dwExtraInfo tag ("WINPUT") that Winput LAN stamps on the input it replays from a remote
+    /// machine. That input is a real physical wheel on the other side, so it is smoothed like local
+    /// hardware; our own SendInput carries no tag and stays ignored.
+    /// </summary>
+    public const long WinputLanInputTag = 0x57494E505554;
+
+    // Windows hands WH_MOUSE_LL only the low 32 bits of dwExtraInfo (0x4E505554 here), even to 64-bit hooks.
+    private const long ExtraInfoHookMask = 0xFFFFFFFF;
+
+    public static bool ShouldIgnoreInjected(uint flags, IntPtr extraInfo) =>
+        (flags & NativeMethods.LlmhfInjected) != 0 &&
+        (extraInfo.ToInt64() & ExtraInfoHookMask) != (WinputLanInputTag & ExtraInfoHookMask);
 
     private static bool IsPhysicalMessage(int msg) => msg is
         NativeMethods.WmMousemove or NativeMethods.WmMousewheel or NativeMethods.WmMousehwheel or

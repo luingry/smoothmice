@@ -1,5 +1,19 @@
 # Resolved errors
 
+## 2026-09-24 — Wheel replayed by Winput LAN was never smoothed
+
+- Symptom: on a PC controlled through Winput LAN, remote wheel scrolls passed through unsmoothed
+  and never appeared in the scroll monitor.
+- Root cause: `MouseHookService` skipped every `LLMHF_INJECTED` event (meant for our own
+  output); Winput LAN replays remote input with `SendInput`, which always sets that flag.
+- Solution: `ShouldIgnoreInjected` still skips injected input except when `dwExtraInfo` is Winput
+  LAN's tag `0x57494E505554`. Our own `SendInput` has no tag, so no double smoothing.
+- Follow-up (2.2.5): Windows truncates `dwExtraInfo` to 32 bits before calling `WH_MOUSE_LL`
+  (the hook sees `0x4E505554`), so the 2.2.4 full 64-bit comparison never matched. Compare only
+  the low 32 bits; verified with a live hook + `SendInput` probe.
+- Prevention: never tag SmoothMice's own injections with that value; covered by
+  `MouseHookInjectionFilterTests`.
+
 ## 2026-09-23 — Large "Start smoothing" ended scrolls at peak velocity; mixed-profile pulses jerked/reversed
 
 - Symptom: with Start smoothing (`AttackTimeMs`) near/above Animation time, each scroll stopped

@@ -4,6 +4,25 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.2.5 — 2026-09-24
+
+### Fixed — Winput LAN wheel still ignored in 2.2.4
+
+- **2.2.4 compared the full 64-bit Winput LAN tag, but Windows hands `WH_MOUSE_LL` only the low
+  32 bits of `dwExtraInfo`** (`0x4E505554`), so the remote wheel was still dropped. The hook now
+  compares the low 32 bits.
+
+## 2.2.4 — 2026-09-24
+
+### Fixed — Wheel from Winput LAN was not smoothed
+
+- **Remote wheel input from Winput LAN bypassed smoothing.** The mouse hook ignored every
+  `LLMHF_INJECTED` event to avoid re-processing its own output, which also dropped the wheel
+  Winput LAN replays from a controlling PC via `SendInput`. Injected events carrying Winput LAN's
+  `dwExtraInfo` tag (`0x57494E505554`) are now treated as physical input: smoothed, shown in
+  **Monitorar scroll** and visible to calibration. SmoothMice's own injections and input
+  from any other tool remain ignored.
+
 ## 2.2.3 — 2026-09-23
 
 ### Fixed — "Start smoothing" / animation easing curve and settings
