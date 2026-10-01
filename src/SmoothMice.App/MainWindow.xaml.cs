@@ -137,6 +137,9 @@ public partial class MainWindow
     {
         if (DataContext is not MainViewModel vm) return;
 
+        ((SmoothMice.App.Converters.ProfileIconConverter)Resources["ProfileIcon"]).Resolve =
+            name => (DataContext as MainViewModel)?.GetProfileIconPath(name);
+
         if (_vmSubscribed != vm)
         {
             if (_vmSubscribed is not null)
@@ -378,6 +381,12 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
             static () => Keyboard.ClearFocus());
+    }
+
+    private void ThemeToggle_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+            vm.DarkMode = !vm.DarkMode;
     }
 
     private void Help_OnClick(object sender, RoutedEventArgs e)

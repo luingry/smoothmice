@@ -73,7 +73,8 @@ public sealed class ActiveAppResolver
                     hwnd,
                     processId,
                     executableName,
-                    GetWindowTitle(hwnd)));
+                    GetWindowTitle(hwnd),
+                    executablePath));
             }
             catch
             {
@@ -92,7 +93,7 @@ public sealed class ActiveAppResolver
             // Enumeration is optional UI affordance; fail closed to an empty result.
         }
 
-        return windows
+        return RunningApplicationWindow.DistinctByExecutable(windows)
             .OrderBy(window => window.DisplayName, StringComparer.CurrentCultureIgnoreCase)
             .ToArray();
     }
@@ -155,7 +156,8 @@ public sealed class ActiveAppResolver
             cached.RootClassName,
             executableName,
             rootHwnd == NativeMethods.GetForegroundWindow(),
-            cached.RootIsFullscreenOrBorderless);
+            cached.RootIsFullscreenOrBorderless,
+            cached.ExecutableIsKnownGame);
     }
 
     /// <summary>
@@ -297,9 +299,10 @@ public sealed class ActiveAppResolver
         try
         {
             var rootClassName = GetWindowClassName(rootHwnd);
-            var executableName = GetExecutableName(processId);
+            var executablePath = GetExecutablePath(processId);
+            var executableName = executablePath is null ? null : Path.GetFileName(executablePath);
             if (rootClassName is null || executableName is null)
-                return new GameWindowCacheEntry(rootHwnd, processId, nowMs, isComplete: false, null, null, false);
+                return new GameWindowCacheEntry(rootHwnd, processId, nowMs, isComplete: false, null, null, false, false);
 
             return new GameWindowCacheEntry(
                 rootHwnd,
@@ -308,12 +311,13 @@ public sealed class ActiveAppResolver
                 isComplete: true,
                 rootClassName,
                 executableName,
-                IsFullscreenOrBorderless(rootHwnd));
+                IsFullscreenOrBorderless(rootHwnd),
+                KnownGameExecutables.Contains(executablePath));
         }
         catch
         {
             // Game detection must never interfere with physical input on a Win32 failure.
-            return new GameWindowCacheEntry(rootHwnd, processId, nowMs, isComplete: false, null, null, false);
+            return new GameWindowCacheEntry(rootHwnd, processId, nowMs, isComplete: false, null, null, false, false);
         }
     }
 
@@ -321,6 +325,31 @@ public sealed class ActiveAppResolver
     {
         var buffer = new StringBuilder(256);
         return NativeMethods.GetClassName(hwnd, buffer, buffer.Capacity) > 0 ? buffer.ToString() : null;
+    }
+
+    /// <summary>Full path of a running process with this executable name, or null when none is accessible.</summary>
+    public static string? FindRunningExecutablePath(string executableName)
+    {
+        try
+        {
+            foreach (var process in System.Diagnostics.Process.GetProcessesByName(
+                         Path.GetFileNameWithoutExtension(executableName)))
+            {
+                using (process)
+                {
+                    var path = GetExecutablePath((uint)process.Id);
+                    if (path is not null &&
+                        string.Equals(Path.GetFileName(path), executableName, StringComparison.OrdinalIgnoreCase))
+                        return path;
+                }
+            }
+        }
+        catch
+        {
+            // Processes can exit or deny access while probing; the icon is optional.
+        }
+
+        return null;
     }
 
     private static string? GetExecutableName(uint pid)
@@ -398,7 +427,8 @@ public sealed class ActiveAppResolver
     {
         public GameWindowCacheEntry(
             IntPtr rootHwnd, uint processId, long cachedAtMs, bool isComplete,
-            string? rootClassName, string? executableName, bool rootIsFullscreenOrBorderless)
+            string? rootClassName, string? executableName, bool rootIsFullscreenOrBorderless,
+            bool executableIsKnownGame)
         {
             RootHwnd = rootHwnd;
             ProcessId = processId;
@@ -407,6 +437,7 @@ public sealed class ActiveAppResolver
             RootClassName = rootClassName;
             ExecutableName = executableName;
             RootIsFullscreenOrBorderless = rootIsFullscreenOrBorderless;
+            ExecutableIsKnownGame = executableIsKnownGame;
         }
 
         public IntPtr RootHwnd { get; }
@@ -416,5 +447,6 @@ public sealed class ActiveAppResolver
         public string? RootClassName { get; }
         public string? ExecutableName { get; }
         public bool RootIsFullscreenOrBorderless { get; }
+        public bool ExecutableIsKnownGame { get; }
     }
 }

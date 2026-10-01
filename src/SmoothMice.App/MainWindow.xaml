@@ -22,6 +22,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <c:DoubleStringConverter x:Key="DoubleStr" />
         <c:IntStringConverter    x:Key="IntStr" />
+        <c:ProfileIconConverter  x:Key="ProfileIcon" />
 
         <Style x:Key="SectionHeader" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -67,6 +68,36 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="36"/>
                 </Grid.ColumnDefinitions>
+                <Button Grid.Column="0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Click="ThemeToggle_OnClick"
+                        AutomationProperties.Name="Toggle dark mode">
+                    <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontWeight="Normal"
+                               FontSize="14">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="&#xE706;"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DarkMode}" Value="True">
+                                        <Setter Property="Text" Value="&#xE708;"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource IconCircleButton}">
+                            <Setter Property="ToolTip" Value="Light mode — switch to dark mode"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DarkMode}" Value="True">
+                                    <Setter Property="ToolTip" Value="Dark mode — switch to light mode"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             HorizontalAlignment="Center"
@@ -111,11 +142,6 @@
                           IsChecked="{Binding AutoStartOnLogin, Mode=TwoWay}"
                           Checked="PersistCheck_OnChanged"
                           Unchecked="PersistCheck_OnChanged"/>
-                <CheckBox Content="Dark mode"
-                          Margin="0,4,0,0"
-                          ToolTip="Use the dark application palette"
-                          AutomationProperties.Name="Dark mode"
-                          IsChecked="{Binding DarkMode, Mode=TwoWay}"/>
                 <CheckBox Content="Do not activate in games"
                           Margin="0,4,0,0"
                           ToolTip="Lets the mouse wheel pass through natively in conservatively detected games"
@@ -137,7 +163,31 @@
                 <ComboBox x:Name="ProfileCombo"
                           Grid.Column="0"
                           Margin="0"
-                          SelectionChanged="ProfileCombo_OnSelectionChanged"/>
+                          SelectionChanged="ProfileCombo_OnSelectionChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <Image Width="16"
+                                       Height="16"
+                                       Margin="0,0,6,0"
+                                       VerticalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       Source="{Binding Converter={StaticResource ProfileIcon}}">
+                                    <Image.Style>
+                                        <Style TargetType="Image">
+                                            <Style.Triggers>
+                                                <Trigger Property="Source" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Image.Style>
+                                </Image>
+                                <TextBlock Text="{Binding}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             Margin="6,0,0,0">
@@ -234,12 +284,6 @@
                                             Converter={StaticResource IntStr}}"/>
                 </StackPanel>
 
-                <Rectangle Grid.Column="1"
-                             Fill="{DynamicResource Brush.Border}"
-                             Width="1"
-                             VerticalAlignment="Stretch"
-                             Margin="0,4"/>
-
                 <StackPanel Grid.Column="2">
                     <TextBlock Text="Acceleration" Style="{StaticResource SectionHeader}"/>
 
@@ -329,11 +373,12 @@
                     Click="MonitorScroll_OnClick"
                     ToolTip="Opens a live monitor of physical wheel pulses"
                     AutomationProperties.Name="Scroll logs"/>
-            <Button Content="Reset All"
+            <Button Content="Reset all profiles"
                     Margin="0,6,0,0"
                     HorizontalAlignment="Stretch"
                     Style="{StaticResource SecondaryButton}"
-                    Command="{Binding ResetAllCommand}"/>
+                    Command="{Binding ResetAllCommand}"
+                    ToolTip="Deletes every app profile and restores the All applications profile and app options to defaults"/>
         </StackPanel>
     </Grid>
 </Window>

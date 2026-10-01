@@ -339,6 +339,24 @@ public sealed class MainViewModel : ViewModelBase
         Raise(nameof(UpdateFlowActive));
     }
 
+    /// <summary>
+    /// Executable whose icon represents the named app profile: the stored path, or a running
+    /// process with that name. Null (no icon) for the global profile or when none is found.
+    /// </summary>
+    public string? GetProfileIconPath(string displayName)
+    {
+        var profile = _manager.Snapshot.Profiles.FirstOrDefault(p => p.DisplayName == displayName);
+        if (profile is null || profile.IsGlobal)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(profile.ExecutablePath) && File.Exists(profile.ExecutablePath))
+            return profile.ExecutablePath;
+
+        return string.IsNullOrWhiteSpace(profile.ExecutableName)
+            ? null
+            : ActiveAppResolver.FindRunningExecutablePath(profile.ExecutableName!);
+    }
+
     public void ReloadFromManager()
     {
         var snap = _manager.Snapshot;
@@ -427,8 +445,9 @@ public sealed class MainViewModel : ViewModelBase
 
     private void ResetAll()
     {
-        if (MessageBox.Show("Reset all settings to defaults?", "SmoothMice",
-                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        if (MessageBox.Show(
+                "Reset all profiles?\n\nEvery app profile will be deleted, and the All applications profile and app options will be restored to defaults.",
+                "SmoothMice", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
         _manager.ResetAllToDefaults();
         ReloadFromManager();
@@ -466,7 +485,7 @@ public sealed class MainViewModel : ViewModelBase
         if (dialog.ShowDialog(owner) != true)
             return;
 
-        AddOrSelectAppProfile(Path.GetFileName(dialog.FileName));
+        AddOrSelectAppProfile(Path.GetFileName(dialog.FileName), dialog.FileName);
     }
 
     private void AddProfileFromRunningWindow(Window? owner)
@@ -479,14 +498,14 @@ public sealed class MainViewModel : ViewModelBase
         if (dialog.ShowDialog() != true || dialog.SelectedWindow is null)
             return;
 
-        AddOrSelectAppProfile(dialog.SelectedWindow.ExecutableName);
+        AddOrSelectAppProfile(dialog.SelectedWindow.ExecutableName, dialog.SelectedWindow.ExecutablePath);
     }
 
     /// <summary>
     /// Adds a profile when needed and always moves the shell/UI selection to the executable's
     /// profile. This makes a duplicate selection useful instead of treating it as an error.
     /// </summary>
-    internal void AddOrSelectAppProfile(string executableName)
+    internal void AddOrSelectAppProfile(string executableName, string? executablePath = null)
     {
         executableName = executableName?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(executableName))
@@ -496,12 +515,13 @@ public sealed class MainViewModel : ViewModelBase
         var profile = snapshot.Profiles.FirstOrDefault(profile =>
             !profile.IsGlobal && string.Equals(profile.ExecutableName, executableName,
                 StringComparison.OrdinalIgnoreCase));
-        if (profile is null)
+        if (profile is null || (string.IsNullOrWhiteSpace(profile.ExecutablePath) && !string.IsNullOrWhiteSpace(executablePath)))
         {
             var displayName = Path.GetFileNameWithoutExtension(executableName);
-            // A concurrent settings update can have created it after our first snapshot.
+            // A concurrent settings update can have created it after our first snapshot. For an
+            // existing profile this only records the missing executable path (for its icon).
             _ = _manager.TryAddAppProfile(executableName,
-                string.IsNullOrWhiteSpace(displayName) ? executableName : displayName);
+                string.IsNullOrWhiteSpace(displayName) ? executableName : displayName, executablePath);
             snapshot = _manager.Snapshot;
 
             profile = snapshot.Profiles.FirstOrDefault(candidate =>

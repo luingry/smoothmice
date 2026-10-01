@@ -22,4 +22,22 @@ public class RunningWindowPickerDialogTests
 
         Assert.Equal("Example.exe (PID 456)", candidate.DisplayName);
     }
+
+    [Fact]
+    public void Running_windows_are_deduplicated_by_executable_preferring_a_titled_window()
+    {
+        var windows = new[]
+        {
+            new RunningApplicationWindow(new IntPtr(1), 10, "chrome.exe", string.Empty),
+            new RunningApplicationWindow(new IntPtr(2), 11, "Chrome.EXE", "Inbox"),
+            new RunningApplicationWindow(new IntPtr(3), 12, "chrome.exe", "Docs"),
+            new RunningApplicationWindow(new IntPtr(4), 20, "notepad.exe", "notes.txt"),
+        };
+
+        var distinct = RunningApplicationWindow.DistinctByExecutable(windows);
+
+        Assert.Equal(2, distinct.Count);
+        Assert.Equal(new IntPtr(2), distinct[0].Hwnd);
+        Assert.Equal(new IntPtr(4), distinct[1].Hwnd);
+    }
 }
