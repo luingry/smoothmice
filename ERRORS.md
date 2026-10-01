@@ -1,5 +1,53 @@
 # Resolved errors
 
+## 2026-10-01 — Free-Spin hold/replay delayed scroll starts and made released scrolls jump
+
+- Symptom: with held first pulses (test.6–8), slow or small scrolls after moving the mouse started late (up to ~500 ms with cadence release), and released pulses arrived together and jumped.
+- Root causes: (1) any "wait for evidence" design adds latency equal to the evidence wait; slow scrolls need hundreds of ms to show their cadence. (2) `ScrollCoordinator.ReplayHeldWheel` fed held pulses through `OnMouseWheel` at replay time, so `UpdateEwma` saw ~0 ms between them and the following pulse and applied near-maximum acceleration.
+- Solution: removed holding and replay entirely (`FreeSpinWobblePolicy` returns Pass/Suppress at arrival). Recovered most of the legitimate-scroll protection with a causal signal from the raw sessions instead: a lift's last movement is sharp (≥250 px/s) and ends 10+ ms before the pulse; scrolling while moving, or after decelerating to a stop, is not suspect. 88% inertia, 37/255 legitimate scrolls touched, 0 latency.
+- Prevention: in an input path, treat added latency as a hard constraint before designing around look-ahead. If input must ever be replayed into the smoothing pipeline, carry its original timestamp: acceleration is derived from inter-pulse intervals.
+
+## 2026-10-01 — Free-Spin model let inertia through more as calibration samples grew
+
+- Symptom: with 350 samples (100 legitimate), lifts passed again. Replaying a labelled raw session through the installed detector suppressed 0/253 inertia pulses: no cutoff could bound legitimate false positives under 5%.
+- Root causes: (1) the inertia signature is a wheel rebound (+ then − ~60–350 ms later; 80 of 121 inertia pairs), but features used |delta| and so discarded the sign; (2) the first pulse of a lift and of "move cursor, then scroll" are causally alike, so every legitimate sample of that kind made the model more cautious; (3) the information that separates them — the next pulse comes 7–32 ms later in a real scroll and 60+ ms later in inertia — arrives after a causal decision; (4) `FreeSpinCausalHistory` kept only 24 moves (~24 ms at 1000 Hz), so its "movement before the wheel" features barely saw movement.
+- Solution: `FreeSpinWobblePolicy`, a rule set measured on a 5-minute labelled raw recording (stage 1: movement and lifts only, so every wheel is inertia; stage 2: deliberate scrolling only). The suspect first pulse is held 50 ms and replayed through `ScrollCoordinator.ReplayHeldWheel` if a fast same-direction pulse follows. Rebounds and later rocking are dropped; one slow one-way follow-up is dropped. Result on that session: 92% inertia dropped, 1.2% legitimate pulses touched.
+- Known limits: lifts where the wheel spins with no prior movement (mouse already still in the air) are not separable from a still-mouse scroll; a single deliberate notch right after moving the mouse is dropped.
+- Prevention: when labels come from short manual captures, record a long, continuously labelled raw session as well and replay any detector on it before trusting cross-validation on the captures. Check that signed and temporal structure (direction, follow-up timing) is not lost in feature engineering.
+
+## 2026-10-01 — Free-Spin: one legitimate capture disabled every cutoff
+
+- Symptom: with 80 legitimate and 98 inertia captures, live lifts were "InertiaCandidate … Observed legitimate false positives at this cutoff" (136 of 457 live pulses), so nothing was suppressed despite 95% confidence.
+- Root cause: eligibility required zero legitimate false-positive groups. One legitimate "small move, then scroll 5 ms later" capture reached OOF score 1.0, so every cutoff had fp ≥ 1. A second latent flaw: a top cutoff with tp = 0 (only legitimate hits) would drag every confidence to ~0 through the suffix-min.
+- Solution: eligibility requires the 95% Jeffreys upper bound of the legitimate false-positive rate ≤ 5%, and confidence = min(precision lower bound, 1 − that upper bound). Cutoffs with tp = 0 are dropped. OOD limit moved from p95 to p97.5. The variants were compared on real data with leave-one-capture-out: a 10% FP-rate cap touched 4/80 legitimate captures, while 5% touched 0/80. p99 OOD touched 1/80, while p97.5 touched 0/80 and added more detections than p95.
+- Note: bounding the rate under 5% needs about 38+ legitimate captures with no hits. Fewer legitimate captures now means no suppression, which is intentional.
+- Prevention: avoid "zero observed failures" gates on a growing calibration set — a single borderline sample flips the entire system off. Use a rate bound that tightens with more data.
+
+## 2026-10-01 — Free-Spin: most live lifts abstained as out-of-distribution
+
+- Symptom: after the scaling fix, live lifts mostly showed 0% (Abstain); the live decision log (`Diagnostics\free-spin-live-*.ndjson`) showed 131/163 decisions out of distribution.
+- Root causes (from the log): (1) live pulses 0.5–2 s after an earlier wheel carried that interval as a feature, but captures start at F8 and never contain such gaps; (2) pulses 3+ of a free-spin burst had no counterpart, since captures hold at most ~2 pulses; (3) old lift captures lacked fast pre-lift movement (new captures cover it).
+- Solution: prior-wheel window 500 ms (beyond = new gesture); burst continuation for same-direction pulses ≤250 ms apart within 1.5 s of an eligible pulse. Out-of-sample on the live log (trained on the archived captures): eligible rose from ~16 to 73 of 178; legitimate captures still 0/40 suppressed.
+- Also measured: 32/50 new lift captures have no wheel pulse; only 2 had a pulse right after F8 (15 and 145 ms), so the capture window is not losing pulses — most lifts simply do not spin the wheel.
+- Prevention: keep the live decision log on while calibrating and compare live features to sample features; any feature whose live range cannot appear inside a ~1 s capture must be bounded to what captures can show.
+
+## 2026-10-01 — Settings reverted after install: two app instances, stale one saved last (RESOLVED in 2.2.9-test.4)
+
+- Symptom: after installing 2.2.9-test.1, Free-Spin settings were back to defaults (module off, confidence 90, lift target 40); samples were intact.
+- Root cause: two 2.2.8 processes were running (there is no single-instance guard). The installer's Restart Manager closed both at the same second; each `OnExit` saved its own in-memory snapshot, and the stale instance (which never saw the user's Free-Spin edits) wrote last. The `.bak` rotation then held the same stale content.
+- Recovery: killed the app (no exit save), restored the known values in settings.json (copy kept as `settings.json.before-restore-20261001`), relaunched.
+- Fix: `SingleInstanceGuard` (session-local named mutex + activation event) acquired at the top of `OnStartup`, before settings load or the hook. A manual duplicate signals the owner to show its window and exits; `/tray` and post-OTA launches wait up to 10 s so a relaunch survives a predecessor still saving. The mutex is released in `OnExit` only after the final save. The post-OTA relaunch keeps the mutex until then (releasing it before `Process.Start` would let the successor load settings before that save). Verified on the installed build: a manual duplicate exited at once, a `/tray` duplicate after 10.2 s, one process remained, and Free-Spin settings were unchanged.
+- It recurred during testing: a second instance was opened from the Start menu while one was in the tray. Besides the settings risk, two instances also meant two `WH_MOUSE_LL` hooks were active at once.
+
+## 2026-10-01 — Free-Spin detector never suppressed with real calibration data
+
+- Symptom: with 170 real samples (50 lift, 40 landing, 40 reposition, 40 legitimate), maximum conservative confidence was 47.5%, 38/40 legitimate captures scored 1.0 (false positives), the OOD distance was 45 057, and nothing was ever eligible for suppression.
+- Root causes: (1) `RobustMad` floored a zero MAD at .001, so mostly constant features (wheel delta 120, zero movement, the prior-wheel flag) dominated distance by ~1000x; (2) top-9 kNN broke distance ties by list order, so identical still first pulses (present in landing and legitimate captures) were scored by whichever phase folder loaded first; (3) live wheels after a >2 s pause returned a null context (abstain) although every training sample starts as a "first pulse"; (4) live movement history kept arbitrarily old moves, which training samples (starting at F8) never contain.
+- Solution: per-feature robust scale (1.4826·MAD, mean-absolute-deviation fallback, per-unit floor); tie-inclusive neighbourhood shared by calibration and live inference; long pause = first pulse; only moves within 1 s of the wheel. Leave-one-capture-out on the real data afterwards: 0/40 legitimate captures (0/571 pulses) suppressed, 31/36 lift and 14/17 reposition captures suppressed, top cutoff 96.1% with 0 legitimate false positives.
+- Known limit: landing pulses arrive before any movement, so causally they are identical to a legitimate first pulse and cannot be separated (0/9). Legitimate captures contain no prior cursor movement, so "small move then scroll" is not represented; the UI now asks for such captures.
+- Data safety: phase Reset now moves samples to `v1-archive` (outside the training root) instead of deleting them.
+- Prevention: evaluate a detector on the user's real samples with leave-one-group-out before trusting synthetic tests; check that every feature has a non-degenerate scale; make live feature extraction match how calibration samples are bounded; break kNN ties deterministically by inclusion, never by input order. Beware: `Copy-Item` keeps the old timestamp, so MSBuild may skip a restored source file.
+
 ## 2026-09-24 — ThreadPool timer cadence, stall catch-up spikes, and stale reversed ticks
 
 - Symptoms: the net48 4 ms System.Threading.Timer measured about 17 ms locally; a 100 ms stall concentrated a default pulse into a 405-unit tick (regular peak 33); a previously calculated tick could race a direction reversal.

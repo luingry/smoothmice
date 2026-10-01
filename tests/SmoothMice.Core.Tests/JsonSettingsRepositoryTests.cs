@@ -110,7 +110,7 @@ public class JsonSettingsRepositoryTests
             try
             {
                 var s = WithCustomAppProfile();
-                s.FreeSpinLiftTarget = 30 + (i % 20);
+                s.LastUpdateCheckUtc = DateTimeOffset.UnixEpoch.AddMinutes(i);
                 repo.Save(s);
             }
             catch (Exception ex)

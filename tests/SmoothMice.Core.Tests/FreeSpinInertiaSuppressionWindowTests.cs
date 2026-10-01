@@ -45,7 +45,6 @@ public class FreeSpinInertiaSuppressionWindowTests
                 Assert.Equal((Color)ColorConverter.ConvertFromString("#F4F5F7")!, ((SolidColorBrush)themeProbe.Background).Color);
                 themeWindow.Close();
                 using var hook = new MouseHookService();
-                using var recorder = new FreeSpinCalibrationRecorder(hook);
                 var source = new ProfileAddSourceDialog();
                 source.Close();
                 var picker = new RunningWindowPickerDialog([]);
@@ -83,13 +82,14 @@ public class FreeSpinInertiaSuppressionWindowTests
                 monitor.Close();
                 var window = new FreeSpinInertiaSuppressionWindow(
                     moduleEnabled: true,
-                    liftTarget: 40,
-                    landingTarget: 40,
-                    repositionTarget: 40,
-                    legitimateTarget: 40,
-                    recorder,
+                    FreeSpinDetectionMode.ReadOnly,
+                    logDecisions: false,
+                    new FreeSpinDetectionService(hook),
                     _ => { },
-                    (_, _) => { });
+                    _ => { },
+                    _ => { },
+                    ownsDetector: true);
+                Assert.False(window.LogDecisions);
                 window.Close();
                 app.Shutdown();
             }
