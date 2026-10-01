@@ -15,7 +15,7 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 ### Profiles
 
 - The global profile is now named **All applications** (saved settings are renamed on load) and has no icon.
-- The profile list shows each app's icon. New profiles store the executable path for this; older profiles use a running process with the same name, or learn their path when picked again.
+- The profile list shows each app's icon. New profiles store the executable path for this; older profiles use a running process with the same name, or learn their path when picked again. Icons are re-resolved each time the list opens, so an app started later gets its icon.
 - **Add app profile**: the two choices sit side by side with icons and no descriptions; the stray access-key underscores are gone.
 - **Select running window**: one entry per executable (the first titled window wins), each with its icon.
 - **Reset All** is now **Reset all profiles**, and its tooltip and confirmation say what it does: delete every app profile and restore the All applications profile and app options to defaults.

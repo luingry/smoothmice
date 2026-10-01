@@ -163,7 +163,8 @@
                 <ComboBox x:Name="ProfileCombo"
                           Grid.Column="0"
                           Margin="0"
-                          SelectionChanged="ProfileCombo_OnSelectionChanged">
+                          SelectionChanged="ProfileCombo_OnSelectionChanged"
+                          DropDownOpened="ProfileCombo_OnDropDownOpened">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
