@@ -232,36 +232,37 @@ public class AppSettingsTests
         }
     }
 
-    [Theory]
-    [InlineData(30, 30)]
-    [InlineData(40, 40)]
-    [InlineData(50, 50)]
-    [InlineData(4, 30)]
-    [InlineData(99, 50)]
-    public void Calibration_targets_are_clamped_and_cloned(int entered, int expected)
-    {
-        var settings = new AppSettings { FreeSpinLiftTarget = entered };
-        var clone = settings.Clone();
-        Assert.Equal(expected, settings.FreeSpinLiftTarget);
-        Assert.Equal(expected, clone.FreeSpinLiftTarget);
-    }
-
     [Fact]
-    public void Default_and_profile_targets_are_independent()
+    public void Settings_written_by_2_2_8_with_removed_calibration_fields_still_load()
     {
-        var defaults = DefaultSettings.CreateAppSettings();
-        Assert.Equal(40, defaults.FreeSpinLiftTarget);
-        Assert.Equal(40, defaults.FreeSpinLandingTarget);
-        Assert.Equal(40, defaults.FreeSpinRepositionTarget);
-        Assert.Equal(40, defaults.FreeSpinLegitimateScrollTarget);
+        // 2.2.8 persisted calibration targets and a confidence threshold that no longer exist.
+        // Upgrading must keep every remaining setting instead of falling back to defaults.
+        var path = Path.Combine(Path.GetTempPath(), "SmoothMice.LegacySettings", Guid.NewGuid().ToString("N"), "settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        try
+        {
+            var legacy = Newtonsoft.Json.Linq.JObject.FromObject(DefaultSettings.CreateAppSettings(),
+                Newtonsoft.Json.JsonSerializer.Create(new Newtonsoft.Json.JsonSerializerSettings { ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver() }));
+            legacy["freeSpinInertiaSuppressionEnabled"] = true;
+            legacy["freeSpinDetectionMode"] = 1;
+            legacy["darkMode"] = true;
+            legacy["freeSpinSuppressionConfidenceThreshold"] = 50;
+            legacy["freeSpinLiftTarget"] = 80;
+            legacy["freeSpinLandingTarget"] = 40;
+            legacy["freeSpinRepositionTarget"] = 70;
+            legacy["freeSpinLegitimateScrollTarget"] = 80;
+            File.WriteAllText(path, legacy.ToString());
 
-        var manager = new ProfileManager(defaults);
-        manager.SetFreeSpinCalibrationTarget(SmoothMice.Core.Diagnostics.FreeSpinCalibrationPhase.Landing, 50);
-        manager.SetFreeSpinCalibrationTarget(SmoothMice.Core.Diagnostics.FreeSpinCalibrationPhase.LegitimateScroll, 30);
-        var saved = manager.Snapshot;
-        Assert.Equal(40, saved.FreeSpinLiftTarget);
-        Assert.Equal(50, saved.FreeSpinLandingTarget);
-        Assert.Equal(40, saved.FreeSpinRepositionTarget);
-        Assert.Equal(30, saved.FreeSpinLegitimateScrollTarget);
+            var loaded = new JsonSettingsRepository(path).LoadOrCreate();
+
+            Assert.True(loaded.FreeSpinInertiaSuppressionEnabled);
+            Assert.Equal(SmoothMice.Core.Diagnostics.FreeSpinDetectionMode.Suppress, loaded.FreeSpinDetectionMode);
+            Assert.True(loaded.DarkMode);
+            Assert.False(loaded.FreeSpinDecisionLogEnabled);
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(path)!, recursive: true);
+        }
     }
 }

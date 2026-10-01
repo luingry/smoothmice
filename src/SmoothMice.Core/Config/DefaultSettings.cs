@@ -32,13 +32,9 @@ public static class DefaultSettings
         UpdateCheckFrequency = UpdateCheckFrequency.DailyOnStartup,
         FreeSpinInertiaSuppressionEnabled = false,
         FreeSpinDetectionMode = SmoothMice.Core.Diagnostics.FreeSpinDetectionMode.ReadOnly,
-        FreeSpinSuppressionConfidenceThreshold = 90,
+        FreeSpinDecisionLogEnabled = false,
         DoNotActivateInGames = false,
         DarkMode = false,
-        FreeSpinLiftTarget = 40,
-        FreeSpinLandingTarget = 40,
-        FreeSpinRepositionTarget = 40,
-        FreeSpinLegitimateScrollTarget = 40,
         LastUpdateCheckUtc = null,
         Profiles =
         [

@@ -23,12 +23,12 @@ public partial class App : Application
     private static string LastOtaSetupErrorPath() =>
         Path.Combine(Path.GetTempPath(), "SmoothMiceLastOtaSetupError.txt");
 
+    private SingleInstanceGuard? _instance;
     private JsonSettingsRepository? _repo;
     private ProfileManager? _profiles;
     private ScrollCoordinator? _coordinator;
     private ScrollPulseLogger? _scrollPulseLogger;
     private MouseHookService? _mouseHook;
-    private FreeSpinCalibrationRecorder? _freeSpinRecorder;
     private FreeSpinDetectionService? _freeSpinDetector;
     private ScrollPulseMonitorWindow? _scrollMonitorWindow;
     private FreeSpinInertiaSuppressionWindow? _freeSpinInertiaSuppressionWindow;
@@ -45,6 +45,21 @@ public partial class App : Application
         // Keep process alive when the settings window is closed (hide-to-tray).
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+        // Before settings load: a duplicate must neither hook input nor save on exit.
+        var postOta = StartupRegistrationService.PostOtaRelaunchMatches(e.Args);
+        var startInTray = StartupRegistrationService.TrayStartupMatches(e.Args) && !postOta;
+        var automaticLaunch = postOta || StartupRegistrationService.TrayStartupMatches(e.Args);
+        _instance = SingleInstanceGuard.TryAcquire(
+            automaticLaunch ? TimeSpan.FromSeconds(10) : TimeSpan.Zero,
+            () => Dispatcher.BeginInvoke(new Action(ShowMainWindow)));
+        if (_instance is null)
+        {
+            if (!automaticLaunch)
+                SingleInstanceGuard.SignalActivate();
+            Shutdown(0);
+            return;
+        }
+
         _repo = new JsonSettingsRepository();
         var loaded = _repo.LoadOrCreate();
         _profiles = new ProfileManager(loaded);
@@ -56,29 +71,15 @@ public partial class App : Application
             _scrollPulseLogger = ScrollPulseLogger.TryStartDefault();
 
         _mouseHook = new MouseHookService(_scrollPulseLogger);
-        _freeSpinRecorder = new FreeSpinCalibrationRecorder(_mouseHook);
         _freeSpinDetector = new FreeSpinDetectionService(_mouseHook);
-        _freeSpinDetector.Configure(loaded.FreeSpinInertiaSuppressionEnabled, loaded.FreeSpinDetectionMode, loaded.FreeSpinSuppressionConfidenceThreshold);
-        _ = _freeSpinDetector.ReloadAsync();
+        _freeSpinDetector.Configure(loaded.FreeSpinInertiaSuppressionEnabled, loaded.FreeSpinDetectionMode, loaded.FreeSpinDecisionLogEnabled);
         var injector = new ScrollInjector();
         var apps = new ActiveAppResolver();
         _coordinator = new ScrollCoordinator(_profiles, _mouseHook, injector, apps);
 
         _startup = new StartupRegistrationService();
         _tray = new TrayIconService();
-        _tray.OpenRequested += (_, _) =>
-        {
-            Current.Dispatcher.Invoke(() =>
-            {
-                if (MainWindow is MainWindow w)
-                {
-                    w.Show();
-                    w.WindowState = System.Windows.WindowState.Normal;
-                    w.RecalculateWindowSize();
-                    w.Activate();
-                }
-            });
-        };
+        _tray.OpenRequested += (_, _) => Current.Dispatcher.Invoke(ShowMainWindow);
         _tray.ToggleEnableRequested += (_, _) =>
         {
             Current.Dispatcher.Invoke(() =>
@@ -91,9 +92,6 @@ public partial class App : Application
         _updateChecker = new GitHubReleaseUpdateChecker();
         _vm = new MainViewModel(_profiles, Persist, () => { _ = CheckForUpdatesAsync(manual: true); }, ApplyTheme);
         _tray.SetEnabledMenuText(_profiles.Snapshot.Profiles.FirstOrDefault(p => p.IsGlobal)?.Settings.Enabled ?? true);
-
-        var postOta = StartupRegistrationService.PostOtaRelaunchMatches(e.Args);
-        var startInTray = StartupRegistrationService.TrayStartupMatches(e.Args) && !postOta;
 
         var main = new MainWindow { DataContext = _vm };
         main.Icon = CreateWindowIcon();
@@ -148,6 +146,17 @@ public partial class App : Application
             }));
     }
 
+    private void ShowMainWindow()
+    {
+        if (MainWindow is MainWindow w)
+        {
+            w.Show();
+            w.WindowState = System.Windows.WindowState.Normal;
+            w.RecalculateWindowSize();
+            w.Activate();
+        }
+    }
+
     private void PostOtaRelaunchToTray()
     {
         var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
@@ -164,6 +173,7 @@ public partial class App : Application
 
         try
         {
+            // The /tray successor waits for the mutex, released in OnExit after the final save.
             Process.Start(new ProcessStartInfo
             {
                 FileName = exe,
@@ -485,8 +495,6 @@ public partial class App : Application
             _scrollMonitorWindow = null;
             _freeSpinInertiaSuppressionWindow?.Close();
             _freeSpinInertiaSuppressionWindow = null;
-            _freeSpinRecorder?.Dispose();
-            _freeSpinRecorder = null;
             _freeSpinDetector?.Dispose();
             _freeSpinDetector = null;
             _coordinator?.Dispose();
@@ -497,6 +505,8 @@ public partial class App : Application
         }
         finally
         {
+            // Released only after the final settings save, so a successor never loads stale state.
+            _instance?.Dispose();
             base.OnExit(e);
         }
     }
@@ -607,39 +617,25 @@ public partial class App : Application
             return;
         }
 
-        if (_profiles is null || _freeSpinRecorder is null || _freeSpinDetector is null)
+        if (_profiles is null || _freeSpinDetector is null)
             return;
+
+        void Apply()
+        {
+            var s = _profiles.Snapshot;
+            _freeSpinDetector.Configure(s.FreeSpinInertiaSuppressionEnabled, s.FreeSpinDetectionMode, s.FreeSpinDecisionLogEnabled);
+            Persist();
+        }
 
         var settings = _profiles.Snapshot;
         var module = new FreeSpinInertiaSuppressionWindow(
             settings.FreeSpinInertiaSuppressionEnabled,
-            settings.FreeSpinLiftTarget,
-            settings.FreeSpinLandingTarget,
-            settings.FreeSpinRepositionTarget,
-            settings.FreeSpinLegitimateScrollTarget,
-            _freeSpinRecorder,
-            _freeSpinDetector,
-            enabled =>
-            {
-                _profiles.SetFreeSpinInertiaSuppressionEnabled(enabled);
-                var s = _profiles.Snapshot;
-                _freeSpinDetector.Configure(enabled, s.FreeSpinDetectionMode, s.FreeSpinSuppressionConfidenceThreshold);
-                Persist();
-            },
-            (phase, target) =>
-            {
-                _profiles.SetFreeSpinCalibrationTarget(phase, target);
-                Persist();
-            },
             settings.FreeSpinDetectionMode,
-            settings.FreeSpinSuppressionConfidenceThreshold,
-            (mode, threshold) =>
-            {
-                _profiles.SetFreeSpinDetectionPolicy(mode, threshold);
-                var s = _profiles.Snapshot;
-                _freeSpinDetector.Configure(s.FreeSpinInertiaSuppressionEnabled, mode, threshold);
-                Persist();
-            })
+            settings.FreeSpinDecisionLogEnabled,
+            _freeSpinDetector,
+            enabled => { _profiles.SetFreeSpinInertiaSuppressionEnabled(enabled); Apply(); },
+            mode => { _profiles.SetFreeSpinDetectionMode(mode); Apply(); },
+            log => { _profiles.SetFreeSpinDecisionLogEnabled(log); Apply(); })
         {
             Owner = owner,
             Icon = CreateWindowIcon(),

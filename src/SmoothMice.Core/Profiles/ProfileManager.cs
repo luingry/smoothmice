@@ -84,13 +84,17 @@ public sealed class ProfileManager
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    public void SetFreeSpinDetectionPolicy(FreeSpinDetectionMode mode, int confidenceThreshold)
+    public void SetFreeSpinDetectionMode(FreeSpinDetectionMode mode)
     {
         lock (_lock)
-        {
             _settings.FreeSpinDetectionMode = mode;
-            _settings.FreeSpinSuppressionConfidenceThreshold = AppSettings.ClampFreeSpinConfidenceThreshold(confidenceThreshold);
-        }
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetFreeSpinDecisionLogEnabled(bool enabled)
+    {
+        lock (_lock)
+            _settings.FreeSpinDecisionLogEnabled = enabled;
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -105,23 +109,6 @@ public sealed class ProfileManager
     {
         lock (_lock)
             _settings.DarkMode = enabled;
-        SettingsChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    public void SetFreeSpinCalibrationTarget(FreeSpinCalibrationPhase phase, int target)
-    {
-        lock (_lock)
-        {
-            target = AppSettings.ClampCalibrationTarget(target);
-            switch (phase)
-            {
-                case FreeSpinCalibrationPhase.Lift: _settings.FreeSpinLiftTarget = target; break;
-                case FreeSpinCalibrationPhase.Landing: _settings.FreeSpinLandingTarget = target; break;
-                case FreeSpinCalibrationPhase.Reposition: _settings.FreeSpinRepositionTarget = target; break;
-                case FreeSpinCalibrationPhase.LegitimateScroll: _settings.FreeSpinLegitimateScrollTarget = target; break;
-                default: throw new ArgumentOutOfRangeException(nameof(phase));
-            }
-        }
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 

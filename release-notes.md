@@ -4,6 +4,22 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ---
 
+## 2.2.9 — 2026-10-01
+
+### Free-Spin Inertia Suppression rebuilt
+
+- Inertia is now filtered by a rule set measured on labelled raw input sessions (all movement and wheel input), replacing the calibration-sample model. That model never suppressed live: its scaling and tie-breaking were broken, it discarded the wheel direction, it saw only ~24 ms of movement, and one lift-like legitimate sample disabled it entirely.
+- Lifting a free-spin mouse rocks the wheel. Dropped: a first pulse 10–300 ms after a sharp movement (≥250 px/s), an opposite pulse within 350 ms, slow rocking after a reversal, and one slow one-way follow-up. Scrolling while the cursor moves, or after it decelerates to a stop, always passes.
+- Every pulse is decided the moment it arrives. No pulse is held or delayed.
+- On two recorded sessions: 88% of inertia pulses dropped; 37 of 255 legitimate scrolls touched (usually only their first notch).
+- The Free-Spin window was simplified to the module switch, the Read-only/Suppress mode, live decisions, and a "Record decision log" switch. That switch only appears while the module is on and is off by default.
+- The F8 sample capture, calibration targets, confidence threshold and sample-based model were removed. Old `settings.json` files still load; the obsolete fields are ignored.
+- `tools/free-spin-raw-recorder.ps1` records a labelled two-stage session for future tuning.
+
+### Fixed
+
+- **Settings could revert after an install or exit.** Only one SmoothMice runs per user session now. A second launch brings the running window to the front and exits before loading settings. Before, two instances each installed a mouse hook, and the stale one overwrote `settings.json` when it exited.
+
 ## 2.2.8 — 2026-09-24
 
 - Uses a dedicated worker and native high-resolution waitable timer for the 4 ms scroll cadence, with a compatibility fallback and no periodic idle work.
