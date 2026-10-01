@@ -8,7 +8,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Threading.Tasks;
 using SmoothMice.App.ViewModels;
+using SmoothMice.Infrastructure.Windows;
 
 namespace SmoothMice.App;
 
@@ -17,6 +19,7 @@ public partial class MainWindow
     private bool _profileSuppress;
     private bool _presetSuppress;
     private bool _loaded;
+    private bool _locatingIconPaths;
     private bool _namesEventsWired;
     private MainViewModel? _vmSubscribed;
     private int _snapRetryRemaining = 40;
@@ -69,7 +72,56 @@ public partial class MainWindow
     private void MainWindow_OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (!(bool)e.NewValue)
+        {
             StopLiveApplyTimer();
+            return;
+        }
+
+        LocateProfileIconPaths();
+    }
+
+    /// <summary>
+    /// Each time the window opens, finds (off the UI thread) the executables of app profiles whose
+    /// path is unknown or gone, saves them, and redraws the icons.
+    /// </summary>
+    private async void LocateProfileIconPaths()
+    {
+        if (_locatingIconPaths || DataContext is not MainViewModel vm)
+            return;
+
+        var names = vm.GetExecutablesWithoutIconPath();
+        if (names.Count == 0)
+            return;
+
+        _locatingIconPaths = true;
+        try
+        {
+            var found = await Task.Run(() => ExecutableLocator.Locate(names));
+            if (vm.RecordExecutablePaths(found))
+                RefreshProfileIcons();
+        }
+        catch
+        {
+            // Icons are cosmetic; a failed lookup leaves them as they were.
+        }
+        finally
+        {
+            _locatingIconPaths = false;
+        }
+    }
+
+    /// <summary>Re-resolves the icon of the selection box and of every generated dropdown item.</summary>
+    private void RefreshProfileIcons()
+    {
+        var images = FindVisualChildren<Image>(ProfileCombo).ToList();
+        foreach (var item in ProfileCombo.Items)
+        {
+            if (ProfileCombo.ItemContainerGenerator.ContainerFromItem(item) is ComboBoxItem container)
+                images.AddRange(FindVisualChildren<Image>(container));
+        }
+
+        foreach (var image in images)
+            BindingOperations.GetBindingExpression(image, Image.SourceProperty)?.UpdateTarget();
     }
 
     private void Numeric_OnTextChanged(object sender, TextChangedEventArgs e)
@@ -387,17 +439,7 @@ public partial class MainWindow
     /// Dropdown items are generated once, so an app opened after that would keep its empty icon.
     /// Re-resolve every item's icon each time the list opens.
     /// </summary>
-    private void ProfileCombo_OnDropDownOpened(object? sender, EventArgs e)
-    {
-        foreach (var item in ProfileCombo.Items)
-        {
-            if (ProfileCombo.ItemContainerGenerator.ContainerFromItem(item) is not ComboBoxItem container)
-                continue;
-
-            foreach (var image in FindVisualChildren<Image>(container))
-                BindingOperations.GetBindingExpression(image, Image.SourceProperty)?.UpdateTarget();
-        }
-    }
+    private void ProfileCombo_OnDropDownOpened(object? sender, EventArgs e) => RefreshProfileIcons();
 
     private void ThemeToggle_OnClick(object sender, RoutedEventArgs e)
     {

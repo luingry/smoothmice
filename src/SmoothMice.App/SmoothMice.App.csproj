@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>SmoothMice.App</RootNamespace>
-    <!-- Artefacto publish: SmoothMice-{Version}.exe; na instalação o Inno copia como SmoothMice.exe -->
+    <!-- Publish artifact: SmoothMice-{Version}.exe; the Inno installer copies it as SmoothMice.exe -->
     <AssemblyName>SmoothMice-$(Version)</AssemblyName>
     <ApplicationIcon>SmoothMice.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>

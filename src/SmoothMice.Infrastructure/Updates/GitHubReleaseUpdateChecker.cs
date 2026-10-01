@@ -4,9 +4,9 @@ using Newtonsoft.Json.Linq;
 
 namespace SmoothMice.Infrastructure.Updates;
 
-/// <param name="ReleasePageUrl">Página HTML da release (mesma informação que em GitHub Releases).</param>
-/// <param name="InstallerAssetName">Nome do ficheiro do instalador na release (ex.: SmoothMice_Setup_0.4.0.exe).</param>
-/// <param name="InstallerDownloadUrl"><c>browser_download_url</c> do asset — URL de descarga oficial da release.</param>
+/// <param name="ReleasePageUrl">The release HTML page (same information as GitHub Releases).</param>
+/// <param name="InstallerAssetName">The installer file name in the release (e.g. SmoothMice_Setup_0.4.0.exe).</param>
+/// <param name="InstallerDownloadUrl">The asset <c>browser_download_url</c> — the official release download URL.</param>
 public readonly record struct DownloadProgress(long BytesRead, long? TotalBytes);
 
 public sealed record UpdateQueryResult(
@@ -19,8 +19,8 @@ public sealed record UpdateQueryResult(
     string? InstallerDownloadUrl);
 
 /// <summary>
-/// Usa a API REST <c>GET /repos/.../releases/latest</c>, que devolve os mesmos dados que a página de release
-/// (incluindo <c>assets</c> com o instalador publicado).
+/// Uses the REST API <c>GET /repos/.../releases/latest</c>, which returns the same data as the release page
+/// (including <c>assets</c> with the published installer).
 /// </summary>
 public sealed class GitHubReleaseUpdateChecker : IDisposable
 {
@@ -98,7 +98,7 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
         }
     }
 
-    /// <summary>Descarrega o instalador da URL do asset (GitHub / objects.githubusercontent.com).</summary>
+    /// <summary>Downloads the installer from the asset URL (GitHub / objects.githubusercontent.com).</summary>
     public static Task DownloadInstallerToFileAsync(
         string sourceUrl,
         string destinationPath,
@@ -107,7 +107,7 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
         DownloadInstallerToFileAsync(sourceUrl, destinationPath, userAgent, progress: null, ct);
 
     /// <inheritdoc cref="DownloadInstallerToFileAsync(string,string,string,CancellationToken)"/>
-    /// <param name="progress">Bytes lidos e total (se <c>Content-Length</c> existir).</param>
+    /// <param name="progress">Bytes read and total (when <c>Content-Length</c> is present).</param>
     public static async Task DownloadInstallerToFileAsync(
         string sourceUrl,
         string destinationPath,
@@ -178,7 +178,7 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
         return (fallbackName, fallbackUrl);
     }
 
-    /// <summary>GitHub redireciona descargas de assets para <c>objects.githubusercontent.com</c>.</summary>
+    /// <summary>GitHub redirects asset downloads to <c>objects.githubusercontent.com</c>.</summary>
     public static bool IsTrustedGitHubDownloadUrl(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps)

@@ -1,21 +1,21 @@
-; Inno Setup 6 — compile com ISCC.exe (instala Inno Setup 6 se ainda não tiveres).
-; O script assume que fizeste publish antes (ver build-installer.ps1).
+; Inno Setup 6 — compile with ISCC.exe (install Inno Setup 6 if you do not have it yet).
+; This script assumes you published first (see build-installer.ps1).
 
 #define MyAppName "SmoothMice"
-; MyAppVersion vem de ISCC /D (ver build-installer.ps1; valor = <Version> em Directory.Build.props).
+; MyAppVersion comes from ISCC /D (see build-installer.ps1; value = <Version> in Directory.Build.props).
 #ifndef MyAppVersion
-#error Definir MyAppVersion: compilar via installer\build-installer.ps1 ou ISCC /DMyAppVersion=x.y.z
+#error Define MyAppVersion: compile via installer\build-installer.ps1 or ISCC /DMyAppVersion=x.y.z
 #endif
 #define MyAppPublisher "SmoothMice"
-; Nome estável após instalar (atalhos, Run, ícones):
+; Stable name after install (shortcuts, Run, icons):
 #define MyAppExeName "SmoothMice.exe"
-; Ficheiro gerado pelo publish (AssemblyName = SmoothMice-{Version}); passar /DMyPublishedExe=...
+; File produced by publish (AssemblyName = SmoothMice-{Version}); pass /DMyPublishedExe=...
 #ifndef MyPublishedExe
-#error Definir MyPublishedExe (ex.: ISCC /DMyPublishedExe=SmoothMice-0.3.0.exe); ver build-installer.ps1
+#error Define MyPublishedExe (e.g. ISCC /DMyPublishedExe=SmoothMice-0.3.0.exe); see build-installer.ps1
 #endif
-; Pasta relativa a este ficheiro (installer\) — net48 publish sem RID
+; Folder relative to this file (installer\) — net48 publish without a RID
 #define PublishDir "..\src\SmoothMice.App\bin\Release\net48\publish"
-; Ícone do Setup.exe / assistente (mesmo .ico da app WPF)
+; Setup.exe / wizard icon (same .ico as the WPF app)
 #define AppIcon "..\src\SmoothMice.App\SmoothMice.ico"
 
 [Setup]
@@ -48,11 +48,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startup"; Description: "Start SmoothMice when Windows starts"; GroupDescription: "Startup:"; Flags: checkedonce
 
 [Files]
-; EXE principal (renomeado para nome fixo para arranque e atualizações OTA)
+; Main EXE (renamed to a fixed name for startup and OTA updates)
 Source: "{#PublishDir}\{#MyPublishedExe}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
-; DLLs dependentes (assemblies da app + NuGet: System.Text.Json, System.Memory, etc.)
+; Dependent DLLs (app assemblies + NuGet: System.Text.Json, System.Memory, etc.)
 Source: "{#PublishDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
-; Ficheiro de configuração .NET Framework (app.exe.config)
+; .NET Framework configuration file (app.exe.config)
 Source: "{#PublishDir}\*.config"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]

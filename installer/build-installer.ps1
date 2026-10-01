@@ -1,18 +1,18 @@
-# Publica SmoothMice e compila o instalador Inno Setup 6.
-# Requer: .NET SDK (qualquer versão que suporte net48) + Inno Setup 6 (ISCC.exe)
+# Publishes SmoothMice and compiles the Inno Setup 6 installer.
+# Requires: .NET SDK (any version that supports net48) + Inno Setup 6 (ISCC.exe)
 #
-# Targeting .NET Framework 4.8 — pré-instalado no Windows 10/11.
-# Sem runtime bundling: instalador ~2-4 MB (vs 64 MB self-contained).
+# Targets .NET Framework 4.8 — preinstalled on Windows 10/11.
+# No runtime bundling: installer ~2-4 MB (vs 64 MB self-contained).
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $repoRoot
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-  Write-Error "SDK .NET nao encontrado no PATH. Instala .NET SDK: https://dotnet.microsoft.com/download"
+  Write-Error ".NET SDK not found on PATH. Install the .NET SDK: https://dotnet.microsoft.com/download"
 }
 
-Write-Host ">> dotnet publish... (Target: net48, sem runtime bundling)"
+Write-Host ">> dotnet publish... (Target: net48, no runtime bundling)"
 
 dotnet publish "src/SmoothMice.App/SmoothMice.App.csproj" `
   -c Release `
@@ -30,21 +30,21 @@ $iscc = @(
 
 if (-not $iscc) {
   Write-Error @"
-Inno Setup 6 nao encontrado.
-Instala de: https://jrsoftware.org/isdl.php
-Depois volta a correr este script.
+Inno Setup 6 not found.
+Install it from: https://jrsoftware.org/isdl.php
+Then run this script again.
 "@
 }
 
 $appCsproj = Join-Path $repoRoot "src\SmoothMice.App\SmoothMice.App.csproj"
 $appVersion = dotnet msbuild $appCsproj -getProperty:Version -nologo
 if ([string]::IsNullOrWhiteSpace($appVersion)) {
-  Write-Error "Nao foi possivel ler <Version> do projeto (Directory.Build.props)."
+  Write-Error "Could not read <Version> from the project (Directory.Build.props)."
 }
 
 $assemblyName = dotnet msbuild $appCsproj -getProperty:AssemblyName -nologo
 if ([string]::IsNullOrWhiteSpace($assemblyName)) {
-  Write-Error "Nao foi possivel ler AssemblyName do projeto."
+  Write-Error "Could not read AssemblyName from the project."
 }
 $publishedExe = "$assemblyName.exe"
 
@@ -53,4 +53,4 @@ Write-Host ">> ISCC (Inno)... (MyAppVersion=$appVersion; MyPublishedExe=$publish
 
 $out = Join-Path $repoRoot "artifacts\installer"
 Write-Host ""
-Write-Host "Instalador gerado em: $out"
+Write-Host "Installer written to: $out"

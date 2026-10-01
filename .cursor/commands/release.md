@@ -1,3 +1,3 @@
 # release
 
-verifique se há commits pendentes, se houver, faça o versionamento, comite tudo, suba para a develop, consolide na main, e gere a release no github.
+Check for pending commits; if there are any, bump the version, commit everything, push to develop, merge into main, and create the GitHub release.

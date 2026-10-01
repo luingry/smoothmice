@@ -1,3 +1,3 @@
 # compile-exe
 
-Gere uma nova instalação .exe
+Build a new .exe installer.
