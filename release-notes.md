@@ -4,6 +4,15 @@ Read this file before changing `<Version>` in `Directory.Build.props`. Every new
 
 ---
 
+## 2.2.12 — 2026-10-01
+
+### In-app updates
+
+- Fixed in-app updates that could fail with "OTA_SETUP_FAILED code %ERRORLEVEL%" and only work on a second try. The installer could start while SmoothMice was still closing (the wait before installing was skipped on some machines), so its files were still locked.
+- If the installer still fails, it is retried automatically up to 3 times. A failure message now shows the installer's real exit code and the path to its log.
+- An incomplete download is now reported as a download error instead of running a damaged installer.
+- Note: these fixes apply to updates started from 2.2.12 onward; the update to 2.2.12 itself still uses the previous version's installer launcher.
+
 ## 2.2.11 — 2026-10-01
 
 ### Profile icons found automatically

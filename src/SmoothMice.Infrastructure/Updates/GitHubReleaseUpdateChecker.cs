@@ -146,6 +146,10 @@ public sealed class GitHubReleaseUpdateChecker : IDisposable
             read += n;
             progress?.Report(new DownloadProgress(read, total));
         }
+
+        // A truncated installer makes Inno Setup fail at startup; report it here instead.
+        if (total is { } expected && read != expected)
+            throw new IOException($"Incomplete download: received {read} of {expected} bytes.");
     }
 
     private static (string? Name, string? Url) TryPickWindowsSetupAsset(JObject root)

@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- App + installer semver version; the single source of truth (bumped manually with commits). -->
-    <Version>2.2.11</Version>
+    <Version>2.2.12</Version>
     <TargetFramework>net48</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

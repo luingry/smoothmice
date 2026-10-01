@@ -1,5 +1,12 @@
 # Resolved errors
 
+## 2026-10-01 — OTA update failed once with "OTA_SETUP_FAILED code %ERRORLEVEL%", then worked on retry
+
+- Symptom: on another machine the in-app update reported `OTA_SETUP_FAILED code %ERRORLEVEL%` on the next start; running the update again succeeded.
+- Root causes: (1) the install batch wrote `%%ERRORLEVEL%%`, which a .bat file turns into the literal text `%ERRORLEVEL%`, so the Inno Setup exit code was lost; (2) the batch waited with `timeout /t`, which exits at once when stdin is not a console ("Input redirection is not supported") and, with Git/coreutils first in PATH, resolves to GNU `timeout`, which rejects `/t`. The 5 s + 2 s waits could be skipped, so setup started while the app was still exiting and its files were locked. This is the most likely cause of the one-off failure (the real exit code was not recorded).
+- Solution: waits use `%SystemRoot%\System32\ping.exe -n N 127.0.0.1` and other tools use full System32 paths; setup is retried up to 3 times (taskkill + wait before each attempt); each attempt writes `/LOG=<workdir>\setup-N.log`, and the failure message carries the real exit code and log path. The download now throws if fewer bytes than `Content-Length` arrived.
+- Prevention: in generated .bat files, `%%` is a literal `%`; use a single `%` for variables. Don't use `timeout.exe` in batches launched without a console; test generated batches with stdin redirected (`cmd /c x.bat </dev/null`).
+
 ## 2026-10-01 — "Do not activate in games" missed God of War Ragnarök (proprietary engine)
 
 - Symptom: with the option on, wheel smoothing stayed active in God of War Ragnarök (`GoWR.exe`); the user had to add a manual profile. `witcher3.exe` had also been added manually.

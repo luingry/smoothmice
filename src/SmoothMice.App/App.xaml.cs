@@ -343,14 +343,32 @@ public partial class App : Application
 
                     var errFlag = LastOtaSetupErrorPath();
                     var batPath = Path.Combine(workDir, "_run_install.bat");
+                    var logPrefix = Path.Combine(workDir, "setup");
                     // Wait for exit, then taskkill (best-effort) so Inno can replace SmoothMice.exe; /CLOSEAPPLICATIONS as backup.
+                    // Setup failures can be transient (files still locked, antivirus scanning the fresh download),
+                    // so retry a few times before reporting; each attempt writes its own Inno log.
                     // After install: /postota = one normal layout pass, then app relaunches with /tray (fixes bad WPF size after OTA).
+                    // Waits use ping, not timeout: timeout.exe exits at once when stdin is not a console, and a PATH with
+                    // Git/coreutils first resolves "timeout" to the GNU tool. Either way the wait was skipped and setup ran
+                    // while the app was still exiting. Full System32 paths avoid PATH lookups.
+                    const string sys32 = @"%SystemRoot%\System32\";
                     var bat = "@echo off\r\n" +
-                              "timeout /t 5 /nobreak >nul\r\n" +
-                              "taskkill /IM SmoothMice.exe /F >nul 2>&1\r\n" +
-                              "timeout /t 2 /nobreak >nul\r\n" +
-                              $"start /wait \"\" \"{EscapeForBatchPath(setupPath)}\" /VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART /CLOSEAPPLICATIONS\r\n" +
-                              $"if errorlevel 1 echo OTA_SETUP_FAILED code %%ERRORLEVEL%% > \"{EscapeForBatchPath(errFlag)}\"\r\n" +
+                              "setlocal\r\n" +
+                              "set attempt=0\r\n" +
+                              $"{sys32}ping.exe -n 6 127.0.0.1 >nul\r\n" +
+                              ":retry\r\n" +
+                              "set /a attempt+=1\r\n" +
+                              $"{sys32}taskkill.exe /IM SmoothMice.exe /F >nul 2>&1\r\n" +
+                              $"{sys32}ping.exe -n 3 127.0.0.1 >nul\r\n" +
+                              $"start /wait \"\" \"{EscapeForBatchPath(setupPath)}\" /VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART /CLOSEAPPLICATIONS \"/LOG={EscapeForBatchPath(logPrefix)}-%attempt%.log\"\r\n" +
+                              "set rc=%errorlevel%\r\n" +
+                              "if %rc%==0 goto done\r\n" +
+                              "if %attempt% lss 3 (\r\n" +
+                              $"  {sys32}ping.exe -n 6 127.0.0.1 >nul\r\n" +
+                              "  goto retry\r\n" +
+                              ")\r\n" +
+                              $"> \"{EscapeForBatchPath(errFlag)}\" echo Setup exit code %rc% after %attempt% attempts. Log: {logPrefix}-%attempt%.log\r\n" +
+                              ":done\r\n" +
                               $"if exist \"{EscapeForBatchPath(installedExe)}\" start \"\" \"{EscapeForBatchPath(installedExe)}\" {StartupRegistrationService.PostOtaRelaunchArg}\r\n" +
                               "del \"%~f0\"\r\n";
 
