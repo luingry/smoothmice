@@ -149,4 +149,55 @@ public class GameWindowClassifierTests
         Assert.False(GameWindowCachePolicy.CanReuse(root, 100, true, 1_000, root, 100, false, 1_100));
         Assert.False(GameWindowCachePolicy.CanReuse(root, 100, false, 1_000, root, 100, true, 1_100));
     }
+
+    [Fact]
+    public void Proprietary_engine_game_known_to_windows_or_steam_is_a_game_when_foreground_or_fullscreen()
+    {
+        // God of War Ragnarok: Sony's own engine, so its window class matches no engine allowlist.
+        Assert.True(GameWindowClassifier.IsLikelyGame(
+            targetClassName: null,
+            rootClassName: "GoWR_Window",
+            executableName: "GoWR.exe",
+            rootIsForeground: true,
+            rootIsFullscreenOrBorderless: true,
+            executableIsKnownGame: true));
+
+        Assert.False(GameWindowClassifier.IsLikelyGame(
+            targetClassName: null,
+            rootClassName: "GoWR_Window",
+            executableName: "GoWR.exe",
+            rootIsForeground: false,
+            rootIsFullscreenOrBorderless: false,
+            executableIsKnownGame: true));
+
+        Assert.False(GameWindowClassifier.IsLikelyGame(
+            targetClassName: null,
+            rootClassName: "GoWR_Window",
+            executableName: "GoWR.exe",
+            rootIsForeground: true,
+            rootIsFullscreenOrBorderless: true,
+            executableIsKnownGame: false));
+    }
+
+    [Fact]
+    public void Known_game_signal_never_overrides_exclusions()
+    {
+        Assert.False(GameWindowClassifier.IsLikelyGame(
+            targetClassName: null,
+            rootClassName: "RCLIENT",
+            executableName: "LeagueClientUx.exe",
+            rootIsForeground: true,
+            rootIsFullscreenOrBorderless: false,
+            executableIsKnownGame: true));
+    }
+
+    [Theory]
+    [InlineData(@"D:\Games\Steam Games\steamapps\common\God of War Ragnarok\GoWR.exe", true)]
+    [InlineData(@"C:\Program Files (x86)\Steam\steamapps\common\The Witcher 3\bin\x64_dx12\witcher3.exe", true)]
+    [InlineData(@"C:\Program Files (x86)\Steam\steam.exe", false)]
+    [InlineData(@"C:\Program Files\Blender\blender.exe", false)]
+    public void Steam_library_paths_are_recognized(string path, bool expected)
+    {
+        Assert.Equal(expected, KnownGameExecutables.IsInSteamLibrary(path));
+    }
 }

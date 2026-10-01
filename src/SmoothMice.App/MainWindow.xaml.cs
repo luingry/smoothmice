@@ -137,6 +137,9 @@ public partial class MainWindow
     {
         if (DataContext is not MainViewModel vm) return;
 
+        ((SmoothMice.App.Converters.ProfileIconConverter)Resources["ProfileIcon"]).Resolve =
+            name => (DataContext as MainViewModel)?.GetProfileIconPath(name);
+
         if (_vmSubscribed != vm)
         {
             if (_vmSubscribed is not null)
@@ -378,6 +381,28 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
             static () => Keyboard.ClearFocus());
+    }
+
+    /// <summary>
+    /// Dropdown items are generated once, so an app opened after that would keep its empty icon.
+    /// Re-resolve every item's icon each time the list opens.
+    /// </summary>
+    private void ProfileCombo_OnDropDownOpened(object? sender, EventArgs e)
+    {
+        foreach (var item in ProfileCombo.Items)
+        {
+            if (ProfileCombo.ItemContainerGenerator.ContainerFromItem(item) is not ComboBoxItem container)
+                continue;
+
+            foreach (var image in FindVisualChildren<Image>(container))
+                BindingOperations.GetBindingExpression(image, Image.SourceProperty)?.UpdateTarget();
+        }
+    }
+
+    private void ThemeToggle_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+            vm.DarkMode = !vm.DarkMode;
     }
 
     private void Help_OnClick(object sender, RoutedEventArgs e)

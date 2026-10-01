@@ -3,11 +3,13 @@ namespace SmoothMice.Infrastructure.Windows;
 /// <summary>
 /// Conservative, pure game-window classifier.
 ///
-/// A positive result requires a known engine window class plus either foreground ownership or a
-/// fullscreen/borderless root window. Godot's legacy <c>Engine</c> class follows the same
-/// foreground-or-fullscreen rule, while explicit exclusions still take precedence. Executable names are used only for explicit
-/// exclusions; an executable name alone never identifies a game. Unknown or incomplete signals
-/// are negative so physical wheel input continues natively (fail-open).
+/// A positive result requires a game signal — a known engine window class, or an executable that
+/// Windows registered as a game or that is installed in a Steam library (see
+/// <see cref="KnownGameExecutables"/>) — plus either foreground ownership or a fullscreen/borderless
+/// root window. Godot's legacy <c>Engine</c> class follows the same foreground-or-fullscreen rule,
+/// while explicit exclusions still take precedence. An executable name alone never identifies a
+/// game. Unknown or incomplete signals are negative so physical wheel input continues natively
+/// (fail-open).
 /// </summary>
 public static class GameWindowClassifier
 {
@@ -22,7 +24,7 @@ public static class GameWindowClassifier
         "startmenuexperiencehost.exe", "searchhost.exe",
         // Launchers are not games, even when they use a graphics framework.
         "steam.exe", "epicgameslauncher.exe", "galaxyclient.exe", "battle.net.exe",
-        "riotclientservices.exe", "ubisoftconnect.exe",
+        "riotclientservices.exe", "ubisoftconnect.exe", "leagueclientux.exe", "eadesktop.exe",
     };
 
     private static readonly HashSet<string> ExcludedWindowClasses = new(StringComparer.OrdinalIgnoreCase)
@@ -46,7 +48,8 @@ public static class GameWindowClassifier
         string? rootClassName,
         string? executableName,
         bool rootIsForeground,
-        bool rootIsFullscreenOrBorderless)
+        bool rootIsFullscreenOrBorderless,
+        bool executableIsKnownGame = false)
     {
         if (IsExcluded(executableName, targetClassName) || IsExcluded(executableName, rootClassName))
             return false;
@@ -54,7 +57,8 @@ public static class GameWindowClassifier
         if (IsGodotLegacyEngineClass(targetClassName) || IsGodotLegacyEngineClass(rootClassName))
             return rootIsForeground || rootIsFullscreenOrBorderless;
 
-        if (!IsStrongEngineClass(targetClassName) && !IsStrongEngineClass(rootClassName))
+        if (!IsStrongEngineClass(targetClassName) && !IsStrongEngineClass(rootClassName) &&
+            !executableIsKnownGame)
             return false;
 
         // A real game is normally foreground. Fullscreen/borderless coverage is an independent

@@ -6,7 +6,7 @@ namespace SmoothMice.Core.Config;
 public static class DefaultSettings
 {
     public const string GlobalProfileId   = "default";
-    public const string GlobalProfileName = "Default (All Applications)";
+    public const string GlobalProfileName = "All applications";
 
     public static ScrollProfileSettings CreateGlobalProfileSettings() => new()
     {

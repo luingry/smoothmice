@@ -1,5 +1,19 @@
 # Resolved errors
 
+## 2026-10-01 — "Do not activate in games" missed God of War Ragnarök (proprietary engine)
+
+- Symptom: with the option on, wheel smoothing stayed active in God of War Ragnarök (`GoWR.exe`); the user had to add a manual profile. `witcher3.exe` had also been added manually.
+- Root cause: `GameWindowClassifier` only recognized engine window classes (Unity, Unreal, SDL, Godot, GLFW, Techland). Proprietary engines (Sony Santa Monica, REDengine) never match, so detection failed open.
+- Solution: added `KnownGameExecutables` as a second game signal: executables Windows itself recorded as games (`HKCU\System\GameConfigStore\Children\*\MatchedExeFullPath`, Game Bar's list, which included GoWR, witcher3, and non-Steam installs) or anything under `\steamapps\common\`. It still requires foreground or fullscreen/borderless and never overrides exclusions (added `LeagueClientUx.exe` and `EADesktop.exe`, which are launchers). The registry is read on a 2-minute timer thread and swapped atomically, so the hook path only does a hash-set lookup.
+- Prevention: don't rely only on engine allowlists for game detection; check the real machine's GameConfigStore when a game is missed.
+
+## 2026-10-01 — Button content alignment ignored: icon drawn on top of the label
+
+- Symptom: in the Add app profile dialog, a Grid with a left-aligned icon and a right-aligned label rendered both overlapping in the middle of the button.
+- Root cause: the shared button templates in `App.xaml` (`Ui.ButtonBase`, `PrimaryButton`, `SecondaryButton`, `IconCircleButton`) hard-coded `ContentPresenter HorizontalAlignment="Center"`, so `HorizontalContentAlignment="Stretch"` on a button had no effect and the Grid shrank to its widest child.
+- Solution: the templates now use `{TemplateBinding HorizontalContentAlignment}`/`VerticalContentAlignment`, and `Ui.ButtonBase` sets both to `Center` so existing buttons look the same.
+- Prevention: custom control templates should bind content alignment to the control's properties instead of fixing it.
+
 ## 2026-10-01 — Free-Spin hold/replay delayed scroll starts and made released scrolls jump
 
 - Symptom: with held first pulses (test.6–8), slow or small scrolls after moving the mouse started late (up to ~500 ms with cadence release), and released pulses arrived together and jumped.

@@ -144,7 +144,7 @@ public sealed class ProfileManager
             p.ExecutableName.Equals(exeName, StringComparison.OrdinalIgnoreCase));
     }
 
-    public bool TryAddAppProfile(string executableName, string displayName)
+    public bool TryAddAppProfile(string executableName, string displayName, string? executablePath = null)
     {
         executableName = executableName.Trim();
         if (string.IsNullOrWhiteSpace(executableName))
@@ -152,10 +152,16 @@ public sealed class ProfileManager
 
         lock (_lock)
         {
-            if (_settings.Profiles.Any(p =>
-                    p.ExecutableName is not null &&
-                    p.ExecutableName.Equals(executableName, StringComparison.OrdinalIgnoreCase)))
+            var existing = _settings.Profiles.FirstOrDefault(p =>
+                p.ExecutableName is not null &&
+                p.ExecutableName.Equals(executableName, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                // Profiles saved before paths were stored learn theirs the next time they are picked.
+                if (string.IsNullOrWhiteSpace(existing.ExecutablePath) && !string.IsNullOrWhiteSpace(executablePath))
+                    existing.ExecutablePath = executablePath;
                 return false;
+            }
 
             var id = Guid.NewGuid().ToString("N");
             var global = _settings.Profiles.First(p => p.IsGlobal);
@@ -165,6 +171,7 @@ public sealed class ProfileManager
                 Id = id,
                 DisplayName = displayName,
                 ExecutableName = executableName,
+                ExecutablePath = executablePath,
                 IsGlobal = false,
                 Settings = clone,
             });
@@ -219,6 +226,11 @@ public sealed class ProfileManager
                 Settings = DefaultSettings.CreateGlobalProfileSettings(),
             });
         }
+
+        // The global profile's name is not user-editable; this also renames profiles saved
+        // under an older default name.
+        foreach (var global in _settings.Profiles.Where(p => p.IsGlobal))
+            global.DisplayName = DefaultSettings.GlobalProfileName;
 
         if (_settings.Profiles.All(p => p.Id != _settings.SelectedProfileId))
             _settings.SelectedProfileId = DefaultSettings.GlobalProfileId;

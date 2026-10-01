@@ -9,6 +9,30 @@ namespace SmoothMice.Core.Tests;
 public class AppSettingsTests
 {
     [Fact]
+    public void Global_profile_saved_under_the_old_name_is_renamed_to_all_applications()
+    {
+        var saved = DefaultSettings.CreateAppSettings();
+        saved.Profiles.Single(profile => profile.IsGlobal).DisplayName = "Default (All Applications)";
+
+        var manager = new ProfileManager(saved);
+
+        Assert.Equal("All applications", manager.Snapshot.Profiles.Single(profile => profile.IsGlobal).DisplayName);
+    }
+
+    [Fact]
+    public void Picking_an_existing_profile_again_records_its_missing_executable_path()
+    {
+        var manager = new ProfileManager(DefaultSettings.CreateAppSettings());
+        var viewModel = new MainViewModel(manager, () => { }, () => { });
+
+        viewModel.AddOrSelectAppProfile("Example.exe");
+        viewModel.AddOrSelectAppProfile("Example.exe", @"C:\Apps\Example.exe");
+
+        var profile = Assert.Single(manager.Snapshot.Profiles.Where(p => p.ExecutableName == "Example.exe"));
+        Assert.Equal(@"C:\Apps\Example.exe", profile.ExecutablePath);
+    }
+
+    [Fact]
     public void Adding_or_reusing_an_executable_selects_its_profile_without_duplicates()
     {
         var manager = new ProfileManager(DefaultSettings.CreateAppSettings());
