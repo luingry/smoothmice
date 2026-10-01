@@ -1,8 +1,20 @@
 # SmoothMice — release notes
 
-Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada versão nova deve ter **secção própria** (mais recente em cima). Resume alterações reais (diff pendente ou commit) em bullets.
+Read this file before changing `<Version>` in `Directory.Build.props`. Every new version gets **its own section** (newest on top) summarizing the real changes (pending diff or commit) as bullets. Everything in this file is written in English.
 
 ---
+
+## 2.2.11 — 2026-10-01
+
+### Profile icons found automatically
+
+- Profile icons are found automatically each time the window opens. App profiles whose executable path is unknown, or no longer exists (e.g. an app updated into a new versioned folder), are located off the UI thread from a running process, or from the executables Windows recorded as run by this user (Explorer's MuiCache and the Program Compatibility Assistant store). The newest existing copy wins, and the path is saved, so the icon stays after the app closes. Apps that were uninstalled get no icon.
+- Saving an edited profile no longer overwrites a path learned after the editor copied the profile.
+
+### Repository
+
+- The repository is English-only, as `AGENTS.md` now states: the remaining Portuguese docs, comments, installer messages, and older changelog entries were translated. GitHub release notes are written in English from this version on.
+- Removed the Cursor rules (`.cursor/rules`).
 
 ## 2.2.10 — 2026-10-01
 
@@ -240,239 +252,239 @@ Antes de alterar `<Version>` em `Directory.Build.props`, lê este ficheiro. Cada
 
 ## 2.1.4 — 2026-09-20
 
-### Correção — bypass em Dying Light: The Beast + persistência imediata
+### Fixed — game bypass in Dying Light: The Beast + immediate persistence
 
-- **Deteção Techland:** a classe raiz real `techland_game_class` passa a ser reconhecida como sinal forte de jogo, ainda exigindo janela em foco ou fullscreen/borderless e mantendo as exclusões explícitas.
-- **Preferência:** alternar **Não ativar em jogos** grava imediatamente a opção global através do fluxo de persistência, sem depender da ordem dos eventos `Checked`/binding do WPF.
-- **Regressão:** cobertura com os sinais reais capturados de Dying Light: The Beast, negativos fail-open e persistência `ViewModel → snapshot → JSON`.
+- **Techland detection:** the real root class `techland_game_class` is now recognized as a strong game signal, still requiring a focused or fullscreen/borderless window and keeping the explicit exclusions.
+- **Preference:** toggling **Do not activate in games** saves the global option immediately through the persistence flow, instead of depending on the order of WPF `Checked`/binding events.
+- **Regression:** covered with the real signals captured from Dying Light: The Beast, fail-open negatives, and `ViewModel → snapshot → JSON` persistence.
 
 ---
 
 ## 2.1.3 — 2026-09-20
 
-### Novo — bypass global conservador para jogos
+### New — conservative global bypass for games
 
-- **Opção global:** adicionada **Não ativar em jogos**, persistida em JSON e desativada por padrão; quando ativa, deixa a roda física passar nativamente para jogos identificados de forma conservadora.
-- **Classificador/cache:** classificação por classes fortes de engines, janela raiz e sinais de foco/fullscreen/borderless, com exclusões para browsers, players, apresentações, shell e launchers. O cache por raiz/PID tem TTL curto e falha aberta.
-- Animações pendentes para um alvo de jogo são canceladas; apps normais e sinais incertos mantêm a suavização existente.
+- **Global option:** added **Do not activate in games**, persisted in JSON and off by default; when on, the physical wheel passes natively to conservatively identified games.
+- **Classifier/cache:** classification by strong engine classes, root window, and focus/fullscreen/borderless signals, with exclusions for browsers, players, presentations, shell, and launchers. The per-root/PID cache has a short TTL and fails open.
+- Pending animations for a game target are cancelled; normal apps and uncertain signals keep the existing smoothing.
 
 ---
 
 ## 2.1.2 — 2026-09-19
 
-### Monitor de scroll ao vivo + diagnóstico NDJSON opcional
+### Live scroll monitor + optional NDJSON diagnostics
 
-- **Novo:** botão **Monitorar scroll** abre uma janela não modal com os pulsos físicos crus antes da suavização: horário relativo/UTC, eixo, delta/direção, intervalo e marcadores de rajada/reversão.
-- **Janela:** mantém até 500 linhas, informa descartes sob sobrecarga e permite **Limpar** para iniciar uma medição controlada.
-- **NDJSON opcional:** `--scroll-log` continua a gravar a captura persistente em paralelo; abrir o monitor não cria ficheiro nem writer.
-- Eventos marcados como injetados (`LLMHF_INJECTED`) continuam excluídos. O diagnóstico só observa a entrada e não altera a suavização; os marcadores são heurísticas, não prova de defeito de hardware.
+- **New:** a scroll monitor button opens a modeless window with the raw physical pulses before smoothing: relative/UTC time, axis, delta/direction, interval, and burst/reversal markers.
+- **Window:** keeps up to 500 rows, reports drops under overload, and offers **Clear** to start a controlled measurement.
+- **Optional NDJSON:** `--scroll-log` still writes the persistent capture in parallel; opening the monitor creates no file or writer.
+- Events flagged as injected (`LLMHF_INJECTED`) stay excluded. Diagnostics only observe input and do not change smoothing; the markers are heuristics, not proof of a hardware defect.
 
 ---
 
 ## 2.1.1 — 2026-05-05
 
-### Correção — Enabled por app agora afeta subprocessos (steam, electron, etc.)
+### Fixed — per-app Enabled now applies to subprocesses (Steam, Electron, etc.)
 
-- **Causa raiz:** apps como o Steam exibem conteúdo em processos filhos (`steamwebhelper.exe`, helpers CEF/Electron). O matching por profile só verificava o exe direto da janela, ignorando o processo pai. Resultado: o profile de `steam.exe` com `Enabled = false` não tinha efeito nas janelas renderizadas pelos helpers.
-- **Fix:** `ActiveAppResolver.QueryWindow` consulta agora o processo pai via `CreateToolhelp32Snapshot`. Se não houver profile para o exe direto, o `ProfileManager` tenta o exe pai. Isso permite que um profile de `steam.exe` (ou qualquer launcher) aplique as definições a todos os seus subprocessos.
-- O resultado é cacheado por HWND — nenhum overhead adicional durante uma sessão de scroll.
+- **Root cause:** apps such as Steam render content in child processes (`steamwebhelper.exe`, CEF/Electron helpers). Profile matching only checked the window's own executable and ignored the parent process, so a `steam.exe` profile with `Enabled = false` had no effect on windows rendered by the helpers.
+- **Fix:** `ActiveAppResolver.QueryWindow` now looks up the parent process via `CreateToolhelp32Snapshot`. When there is no profile for the direct executable, `ProfileManager` tries the parent's. A profile for `steam.exe` (or any launcher) now applies to all its subprocesses.
+- The result is cached per HWND — no extra overhead during a scroll session.
 
 ---
 
 ## 2.1.0 — 2026-05-05
 
-### Enabled por app + reestruturação do bloco Behaviour
+### Per-app Enabled + Behaviour block restructure
 
-- **"Enabled" por perfil:** a opção passou de switch global (`AppSettings`) para campo `ScrollProfileSettings.Enabled`, configurável individualmente em cada perfil (global e por app).
-- **Bloco Behaviour:** "Enabled" é agora a primeira opção do bloco (sem título de secção). Para o perfil global actua como "suavizar apps não mapeadas"; para perfis por app controla apenas aquela app.
-- **Removido:** checkbox "Enable for all apps by default" (substituído pelo novo `Enabled` no perfil global).
-- **Tray:** o toggle Enable/Disable do tray continua funcional — inverte o `Enabled` do perfil global.
-- **Hook:** passa a ficar sempre instalado; o `Enabled` por perfil controla se o evento é interceptado, sem overhead em inativo.
+- **Per-profile "Enabled":** the option moved from a global switch (`AppSettings`) to `ScrollProfileSettings.Enabled`, configurable on each profile (global and per app).
+- **Behaviour block:** "Enabled" is now the block's first option (no section title). On the global profile it means "smooth unmapped apps"; on app profiles it controls only that app.
+- **Removed:** the "Enable for all apps by default" checkbox (replaced by `Enabled` on the global profile).
+- **Tray:** the tray Enable/Disable toggle still works — it flips the global profile's `Enabled`.
+- **Hook:** now always installed; per-profile `Enabled` decides whether an event is intercepted, with no overhead when inactive.
 
 ---
 
 ## 2.0.7 — 2026-05-05
 
-### Correção — crash/comportamento errático no browser ao abrir o SmoothMice ou mudar parâmetros
+### Fixed — browser crash/erratic behaviour when opening SmoothMice or changing parameters
 
-- **Causa raiz — foco stale:** `_cachedUseSendInput` era decidido uma única vez em `OnMouseWheel` e nunca reavaliado. Se o utilizador abrisse a janela de definições (ou trocasse de janela) durante uma animação em curso, os ticks restantes continuavam a enviar `SendInput` para a nova janela em foco (SmoothMice ou outra), podendo injetar eventos no browser errado ou em estado inesperado.
-- **Fix:** `TickCore` passa a chamar `GetAncestor` + `GetForegroundWindow` em cada tick. A estratégia `SendInput` vs `PostMessage` é agora dinâmica; apenas a elevação do processo (estável por sessão) permanece em cache em `_cachedIsElevated`.
-- **Causa secundária — HWND reciclado:** se o browser navegava durante a animação, o `_cachedHwnd` podia ser destruído e o seu número reutilizado para outra janela noutro processo. `PostMessage` para esse handle reciclado entregava eventos a um alvo não intencionado.
-- **Fix:** `ScrollInjector.TryPostWheel` valida o handle com `IsWindow(hwnd)` antes de cada `PostMessage`; descarta silenciosamente se o handle for inválido.
+- **Root cause — stale focus:** `_cachedUseSendInput` was decided once in `OnMouseWheel` and never re-evaluated. If the user opened the settings window (or switched windows) during an animation, the remaining ticks kept sending `SendInput` to the newly focused window (SmoothMice or another), possibly injecting events into the wrong browser or an unexpected state.
+- **Fix:** `TickCore` now calls `GetAncestor` + `GetForegroundWindow` on every tick. The `SendInput` vs `PostMessage` strategy is now dynamic; only process elevation (stable per session) stays cached in `_cachedIsElevated`.
+- **Secondary cause — recycled HWND:** if the browser navigated during the animation, `_cachedHwnd` could be destroyed and its number reused by another window in another process. `PostMessage` to that recycled handle delivered events to an unintended target.
+- **Fix:** `ScrollInjector.TryPostWheel` validates the handle with `IsWindow(hwnd)` before each `PostMessage` and silently drops invalid handles.
 
 ---
 
 ## 2.0.6 — 2026-05-05
 
-### Correção — Explorer sem "stall then jump" (pass-through nativo)
+### Fixed — Explorer "stall then jump" (native pass-through)
 
-- **Causa raiz (confirmada por runtime logs):** controlos `DirectUIHWND` e `SysListView32`/`SysTreeView32` do Explorer acumulam `WM_MOUSEWHEEL` internamente e só reagem visualmente quando o acumulado atinge ±120 (WHEEL_DELTA completo). Os nossos ticks de 1–11 units preenchiam esse acumulador lentamente → silêncio → salto de 3 linhas ao cruzar 120.
-- **Fix:** `ActiveAppResolver` deteta a classe do HWND alvo via `GetClassName`. Se for um controlo legacy (`DirectUIHWND`, `SysListView32`, `SysTreeView32`, `ListBox`), o `ScrollCoordinator` faz **pass-through** — não intercepta o evento, scroll nativo intacto.
-- Apps Win32 normais (browsers, apps de configuração, etc.) continuam a receber smooth scroll.
+- **Root cause (confirmed by runtime logs):** Explorer's `DirectUIHWND` and `SysListView32`/`SysTreeView32` controls accumulate `WM_MOUSEWHEEL` internally and only react visually when the total reaches ±120 (a full WHEEL_DELTA). Our 1–11 unit ticks filled that accumulator slowly → silence → a 3-line jump when crossing 120.
+- **Fix:** `ActiveAppResolver` detects the target HWND's class via `GetClassName`. For a legacy control (`DirectUIHWND`, `SysListView32`, `SysTreeView32`, `ListBox`), `ScrollCoordinator` **passes through** — it does not intercept the event, so native scrolling is intact.
+- Normal Win32 apps (browsers, settings apps, etc.) keep smooth scrolling.
 
 ---
 
 ## 2.0.5 — 2026-05-05
 
-### Correção — estratégia de injeção por foco (SendInput / PostMessage)
+### Fixed — injection strategy by focus (SendInput / PostMessage)
 
-- **Dois problemas identificados:**
-  1. **Task Manager / apps modernas em foco:** `PostMessage(WM_MOUSEWHEEL)` não é suficiente — apps modernas (WinUI 3, DirectUI, shell controls) respondem melhor ao input de hardware real gerado pelo `SendInput`.
-  2. **Explorer "engasgando":** `DirectUIHWND` do Explorer não acumula sub-`WHEEL_DELTA` recebido via `PostMessage`.
-- **Nova regra de eleição `_cachedUseSendInput`:**
-  | Cenário | Método | Razão |
+- **Two problems identified:**
+  1. **Task Manager / modern apps in focus:** `PostMessage(WM_MOUSEWHEEL)` is not enough — modern apps (WinUI 3, DirectUI, shell controls) respond better to the real hardware input generated by `SendInput`.
+  2. **Explorer "stuttering":** Explorer's `DirectUIHWND` does not accumulate sub-`WHEEL_DELTA` input received via `PostMessage`.
+- **New `_cachedUseSendInput` selection rule:**
+  | Scenario | Method | Reason |
   |---|---|---|
-  | Janela em **foco** | `SendInput` | Hardware input real → WM_MOUSEWHEEL + WM_POINTER corretos |
-  | Janela em **background** | `PostMessage(hwnd)` | Bypassa "Scroll inactive windows" → entrega direta ao HWND |
-  | Processo **elevado** | `SendInput` (override) | UIPI bloqueia PostMessage de processos não-elevados |
-  Deteção de foco: `GetAncestor(hwndTarget, GA_ROOT) == GetForegroundWindow()`.
-- **`NativeMethods`:** adicionadas P/Invoke `GetClassName` e `GetAncestor`.
+  | **Focused** window | `SendInput` | Real hardware input → correct WM_MOUSEWHEEL + WM_POINTER |
+  | **Background** window | `PostMessage(hwnd)` | Bypasses "Scroll inactive windows" → direct delivery to the HWND |
+  | **Elevated** process | `SendInput` (override) | UIPI blocks PostMessage from non-elevated processes |
+  Focus detection: `GetAncestor(hwndTarget, GA_ROOT) == GetForegroundWindow()`.
+- **`NativeMethods`:** added `GetClassName` and `GetAncestor` P/Invokes.
 
 ---
 
 ## 2.0.4 — 2026-05-05
 
-### Correção — scroll suave em janelas elevadas (Task Manager, regedit, …)
+### Fixed — smooth scrolling in elevated windows (Task Manager, regedit, …)
 
-- **Causa raiz:** `PostMessage(hwnd, WM_MOUSEWHEEL)` para uma janela de processo **elevado** (High integrity) é silenciosamente descartado pelo **UIPI** (User Interface Privilege Isolation) do Windows quando o processo remetente não é elevado. O SmoothMice suprimia o scroll original (hook retorna 1) mas o evento suavizado nunca chegava — resultado: sem scroll nenhum no Task Manager.
-- **`ActiveAppResolver`:** deteção de elevação adicionada ao query de processo: tenta `OpenProcess(PROCESS_QUERY_INFORMATION)` — se falhar (ERROR_ACCESS_DENIED / UIPI), o processo é elevado.
-- **`ScrollCoordinator`:** estratégia de injeção adaptativa:
-  - **Processo não-elevado** → `PostMessage(hwnd, WM_MOUSEWHEEL)`
-  - **Processo elevado** → `SendInput(MOUSEEVENTF_WHEEL)` — bypassa UIPI por completo.
+- **Root cause:** `PostMessage(hwnd, WM_MOUSEWHEEL)` to a window of an **elevated** (High integrity) process is silently dropped by Windows' **UIPI** (User Interface Privilege Isolation) when the sender is not elevated. SmoothMice suppressed the original scroll (the hook returns 1) but the smoothed event never arrived — so Task Manager did not scroll at all.
+- **`ActiveAppResolver`:** elevation detection added to the process query: it tries `OpenProcess(PROCESS_QUERY_INFORMATION)` — if that fails (ERROR_ACCESS_DENIED / UIPI), the process is elevated.
+- **`ScrollCoordinator`:** adaptive injection strategy:
+  - **Non-elevated process** → `PostMessage(hwnd, WM_MOUSEWHEEL)`
+  - **Elevated process** → `SendInput(MOUSEEVENTF_WHEEL)` — bypasses UIPI entirely.
 
 ---
 
 ## 2.0.3 — 2026-05-05
 
-### Correção — scroll suave em janelas em background (2ª tentativa)
+### Fixed — smooth scrolling in background windows (2nd attempt)
 
-- **Causa raiz identificada:** `SendInput(MOUSEEVENTF_WHEEL)` delega o routing ao OS. Se a configuração "Scroll inactive windows when I hover over them" estiver desligada, o OS entrega o evento à janela com foco em vez da janela sob o cursor.
-- **`ScrollInjector`:** substituído `SendInput` por `PostMessage(hwnd, WM_MOUSEWHEEL, ...)` direto ao HWND alvo. `PostMessage` bypassa completamente o routing do OS.
-- **`ScrollCoordinator`:** `_cachedHwnd` e `_cachedScreenPt` guardados em `OnMouseWheel` (hook time).
-- **`PostMessage` não entra no loop:** `WH_MOUSE_LL` só interceta input de hardware.
+- **Root cause identified:** `SendInput(MOUSEEVENTF_WHEEL)` leaves routing to the OS. With "Scroll inactive windows when I hover over them" off, the OS delivers the event to the focused window instead of the window under the cursor.
+- **`ScrollInjector`:** replaced `SendInput` with a direct `PostMessage(hwnd, WM_MOUSEWHEEL, ...)` to the target HWND. `PostMessage` bypasses OS routing completely.
+- **`ScrollCoordinator`:** `_cachedHwnd` and `_cachedScreenPt` are stored in `OnMouseWheel` (hook time).
+- **`PostMessage` does not loop back:** `WH_MOUSE_LL` only intercepts hardware input.
 
 ---
 
 ## 2.0.2 — 2026-05-05
 
-### Correção — scroll em janelas em background
+### Fixed — scrolling in background windows
 
-- **`ActiveAppResolver`:** resolução do perfil passa a usar a janela sob o cursor (`WindowFromPoint`) em vez da janela em foco (`GetForegroundWindow`).
-- **`ScrollCoordinator.OnMouseWheel`:** usa `e.ScreenPoint` para identificar a janela destino via `WindowFromPoint`.
+- **`ActiveAppResolver`:** profile resolution now uses the window under the cursor (`WindowFromPoint`) instead of the focused window (`GetForegroundWindow`).
+- **`ScrollCoordinator.OnMouseWheel`:** uses `e.ScreenPoint` to find the target window via `WindowFromPoint`.
 
 ---
 
 ## 2.0.1 — 2026-05-05
 
-### Performance — zero overhead em idle
+### Performance — zero overhead when idle
 
-- **Timer on-demand:** o timer de 4 ms e a resolução 1 ms do scheduler são agora activados apenas quando chega um evento de scroll e desactivados imediatamente no fim da animação. Em idle: **0 chamadas Win32/segundo**.
-  - Eliminado o impacto de `timeBeginPeriod(1)` permanente que afectava o scheduler de todos os processos (incluindo browsers) e era a causa directa da quebra de FPS reportada.
-- **Cache de settings em `TickCore`:** elimina `GetForegroundWindow`, `ResolveForExecutable` e `ProfileManager.Snapshot` do loop de 4 ms.
-- **Injecção fora do lock:** `SendInput` executada após libertar `_gate`, evitando bloquear o thread do hook.
+- **On-demand timer:** the 4 ms timer and the 1 ms scheduler resolution are now enabled only when a scroll event arrives and disabled right after the animation ends. When idle: **0 Win32 calls per second**.
+  - Removes the impact of a permanent `timeBeginPeriod(1)`, which affected the scheduler of every process (browsers included) and directly caused the reported FPS drop.
+- **Settings cache in `TickCore`:** removes `GetForegroundWindow`, `ResolveForExecutable`, and `ProfileManager.Snapshot` from the 4 ms loop.
+- **Injection outside the lock:** `SendInput` runs after releasing `_gate`, so the hook thread is not blocked.
 
 ---
 
 ## 2.0.0 — 2026-05-05
 
-### Refatoração total — nova arquitetura de injeção
+### Full refactor — new injection architecture
 
-- **ScrollInjector:** migrado de `PostMessage(WM_MOUSEWHEEL)` para `SendInput(MOUSEEVENTF_WHEEL/HWHEEL)`.
-  - `SendInput` usa o routing nativo do OS (DWM/compositor): a janela sob o cursor recebe o evento corretamente, incluindo overlays de sistema como o painel **Snap Layout** do Windows 11.
-  - Modificadores de teclado (Ctrl, Shift) são lidos do estado real do teclado pela app destinatária.
-- **ScrollCoordinator:** adicionado *pass-through* de Ctrl — quando a tecla Ctrl está premida, o evento passa sem ser interceptado. Corrige **Ctrl+scroll** (zoom no Explorer, zoom em browsers, ajuste de volume, etc.).
-- **MouseHookService:** eventos com flag `LLMHF_INJECTED` são ignorados pelo hook — previne re-processamento (loop de suavização dupla).
+- **ScrollInjector:** moved from `PostMessage(WM_MOUSEWHEEL)` to `SendInput(MOUSEEVENTF_WHEEL/HWHEEL)`.
+  - `SendInput` uses the OS's native routing (DWM/compositor): the window under the cursor receives the event correctly, including system overlays such as the Windows 11 **Snap Layout** panel.
+  - Keyboard modifiers (Ctrl, Shift) are read from the real keyboard state by the receiving app.
+- **ScrollCoordinator:** added Ctrl pass-through — while Ctrl is held, the event passes without interception. Fixes **Ctrl+scroll** (zoom in Explorer and browsers, volume adjustment, etc.).
+- **MouseHookService:** events flagged `LLMHF_INJECTED` are ignored by the hook — prevents re-processing (a double-smoothing loop).
 
 ---
 
 ## 1.0.1 — 2026-05-05
 
-### Melhoria — easing de scroll mais fluído
+### Improved — smoother scroll easing
 
-- **SmoothScrollEngine:** substituído o modelo step-queue (cubic piecewise) pelo modelo **velocity-lerp com rampa de velocidade**.
-  - `_remaining` acumula todos os eventos na mesma direção — sem steps sobrepostos com fases de ease-in independentes que criavam "barrancos" de velocidade.
-  - Ease-in via rampa `_speed` (exponencial em direção a 1.0); ease-out via decaimento exponencial natural.
-  - C¹ e C² contínuo: sem jerk na inflexão.
+- **SmoothScrollEngine:** replaced the step-queue model (piecewise cubic) with a **velocity-lerp model with a speed ramp**.
+  - `_remaining` accumulates every event in the same direction — no overlapping steps with independent ease-in phases creating velocity "cliffs".
+  - Ease-in via the `_speed` ramp (exponential towards 1.0); ease-out via natural exponential decay.
+  - C¹ and C² continuous: no jerk at the inflection.
 
 ---
 
 ## 1.0.0 — 2026-04-18
 
-### Marco estável — primeira versão de produção
+### Stable milestone — first production version
 
-- **Hook:** delegate pre-JIT antes de `SetWindowsHookEx` (`RuntimeHelpers.PrepareDelegate`) — elimina o stutter no primeiro evento do rato causado por JIT dentro do callback nativo.
-- **Arranque:** instalação do hook diferida para `DispatcherPriority.Normal`.
-- **UI:** timer de aplicação automática (300 ms, `Background` priority).
+- **Hook:** delegate pre-JIT before `SetWindowsHookEx` (`RuntimeHelpers.PrepareDelegate`) — removes the stutter on the first mouse event caused by JIT inside the native callback.
+- **Startup:** hook installation deferred to `DispatcherPriority.Normal`.
+- **UI:** auto-apply timer (300 ms, `Background` priority).
 - **Publish:** `PublishReadyToRun=true`.
 
 ---
 
 ## 0.3.13 — 2026-04-18
 
-### Correção crítica — crash na abertura (todas as versões ≥ 0.3.9)
+### Critical fix — crash on open (every version ≥ 0.3.9)
 
-- **XAML:** `ProgressBar.Value` ligado a `UpdateBannerProgress` sem `Mode=OneWay` — WPF usa `BindsTwoWayByDefault` para `RangeBase.Value`, tenta escrever de volta na propriedade read-only e lança `InvalidOperationException` não tratada no arranque.
-  - Corrigido: `Value="{Binding UpdateBannerProgress, Mode=OneWay}"`.
+- **XAML:** `ProgressBar.Value` was bound to `UpdateBannerProgress` without `Mode=OneWay` — WPF uses `BindsTwoWayByDefault` for `RangeBase.Value`, tries to write back to the read-only property, and throws an unhandled `InvalidOperationException` at startup.
+  - Fixed: `Value="{Binding UpdateBannerProgress, Mode=OneWay}"`.
 
 ## 0.3.12 — 2026-04-18
 
-### Correções críticas de arranque
+### Critical startup fixes
 
-- **Cursor travado / app não abre:** `ActiveAppResolver` substituiu `Process.MainModule.FileName` por `QueryFullProcessImageName` (nativo, < 1 ms).
-- **Cache de HWND:** resultado em cache quando a janela em primeiro plano não muda.
-- **Reentrada no timer:** guarda de reentrada com `Interlocked` em `Tick()`.
+- **Stuck cursor / app does not open:** `ActiveAppResolver` replaced `Process.MainModule.FileName` with `QueryFullProcessImageName` (native, < 1 ms).
+- **HWND cache:** result cached while the foreground window does not change.
+- **Timer reentrancy:** reentrancy guard with `Interlocked` in `Tick()`.
 
 ## 0.3.11 — 2026-04-18
 
-- **Arranque:** `SetWindowsHookEx(WH_MOUSE_LL)` passa `hMod = NULL` — evita falha do hook com apphost.
+- **Startup:** `SetWindowsHookEx(WH_MOUSE_LL)` passes `hMod = NULL` — avoids the hook failing with the apphost.
 
 ## 0.3.9 — 2026-04-18
 
-- **OTA:** arranque com `/postota`, barra de progresso, reinício automático.
-- **UI:** `MinHeight` maior e snap de tamanho.
-- **Instalador:** `SetupIconFile` com `SmoothMice.ico`.
+- **OTA:** start with `/postota`, progress bar, automatic restart.
+- **UI:** larger `MinHeight` and size snapping.
+- **Installer:** `SetupIconFile` with `SmoothMice.ico`.
 
 ## 0.3.8 — 2026-04-18
 
-- **Distribuição:** GitHub Release com instalador 0.3.8.
+- **Distribution:** GitHub Release with the 0.3.8 installer.
 
 ## 0.3.7 — 2026-04-18
 
-- **UI:** janela de definições corrigida após arranque com `/tray`.
-- **OTA:** batch de instalação com espera + taskkill.
+- **UI:** settings window fixed after starting with `/tray`.
+- **OTA:** install batch with wait + taskkill.
 
 ## 0.3.6 — 2026-04-18
 
-- **Docs:** README — pré-visualização atualizada.
+- **Docs:** README — updated preview.
 
 ## 0.3.5 — 2026-04-18
 
-- **UI:** Enter nos campos numéricos limpa foco após gravar.
-- **Atualizações in-app:** Inno com `CloseApplications=yes`; batch OTA melhorado.
+- **UI:** Enter in numeric fields clears focus after saving.
+- **In-app updates:** Inno with `CloseApplications=yes`; improved OTA batch.
 
 ## 0.3.4 — 2026-04-18
 
-- **UI:** refinamento visual e estrutura do `MainWindow`.
-- **Core / infra:** remoção de APIs não usadas; comentários compactos.
+- **UI:** visual refinement and `MainWindow` structure.
+- **Core / infra:** removed unused APIs; compact comments.
 
 ## 0.3.3 — 2026-04-18
 
-- **Atualizações:** verificação contra releases no GitHub; descarga e instalação silenciosa.
-- **UI:** secção «ATUALIZAÇÕES»; ícone multi-resolução.
+- **Updates:** check against GitHub releases; silent download and install.
+- **UI:** «UPDATES» section; multi-resolution icon.
 
 ## 0.3.2 — 2026-04-18
 
-- **UI:** versão da app discreta no rodapé; `SizeToContent` e altura automática.
+- **UI:** discreet app version in the footer; `SizeToContent` and automatic height.
 
 ## 0.3.1 — 2026-04-18
 
-- **Publish:** executável `SmoothMice-{Version}.exe`; `build-installer.ps1` passa `MyPublishedExe`.
+- **Publish:** `SmoothMice-{Version}.exe` executable; `build-installer.ps1` passes `MyPublishedExe`.
 
 ## 0.3.0 — 2026-04-18
 
-- **Instalador / versão:** `Directory.Build.props` como fonte de `<Version>`; `build-installer.ps1`.
-- **Arranque:** registo em `Run` com `/tray`.
+- **Installer / version:** `Directory.Build.props` as the source of `<Version>`; `build-installer.ps1`.
+- **Startup:** `Run` registration with `/tray`.
 
 ## 0.1.0 — 2026-04-18
 
-- Utilitário Windows (x64): scroll da roda mais suave, perfis por aplicação, ícone na bandeja e definições em JSON em `%AppData%\SmoothMice\settings.json`.
+- Windows (x64) utility: smoother mouse-wheel scrolling, per-application profiles, a tray icon, and JSON settings in `%AppData%\SmoothMice\settings.json`.

@@ -357,6 +357,24 @@ public sealed class MainViewModel : ViewModelBase
             : ActiveAppResolver.FindRunningExecutablePath(profile.ExecutableName!);
     }
 
+    /// <summary>App profiles whose icon path is unknown or no longer exists (e.g. the app updated).</summary>
+    public IReadOnlyList<string> GetExecutablesWithoutIconPath() =>
+        _manager.Snapshot.Profiles
+            .Where(p => !p.IsGlobal && !string.IsNullOrWhiteSpace(p.ExecutableName) &&
+                        (string.IsNullOrWhiteSpace(p.ExecutablePath) || !File.Exists(p.ExecutablePath)))
+            .Select(p => p.ExecutableName!)
+            .ToArray();
+
+    /// <summary>Stores located executable paths and saves them; true when any profile changed.</summary>
+    public bool RecordExecutablePaths(IReadOnlyDictionary<string, string> pathsByExecutable)
+    {
+        if (pathsByExecutable.Count == 0 || !_manager.RecordExecutablePaths(pathsByExecutable))
+            return false;
+
+        _persist();
+        return true;
+    }
+
     public void ReloadFromManager()
     {
         var snap = _manager.Snapshot;

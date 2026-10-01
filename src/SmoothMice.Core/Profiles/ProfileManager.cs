@@ -202,9 +202,40 @@ public sealed class ProfileManager
         {
             var idx = _settings.Profiles.FindIndex(p => p.Id == edited.Id);
             if (idx < 0) return;
-            _settings.Profiles[idx] = edited.Clone();
+            var copy = edited.Clone();
+            // The UI never edits the path; it is learned in the background, possibly after the
+            // editor took its copy, so keep the stored one.
+            copy.ExecutablePath = _settings.Profiles[idx].ExecutablePath;
+            _settings.Profiles[idx] = copy;
         }
         SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Stores executable paths (keyed by executable name) on the matching app profiles, used only
+    /// to show their icons. Returns true when any profile changed.
+    /// </summary>
+    public bool RecordExecutablePaths(IReadOnlyDictionary<string, string> pathsByExecutable)
+    {
+        var changed = false;
+        lock (_lock)
+        {
+            foreach (var profile in _settings.Profiles)
+            {
+                if (profile.IsGlobal || profile.ExecutableName is null ||
+                    !pathsByExecutable.TryGetValue(profile.ExecutableName, out var path) ||
+                    string.IsNullOrWhiteSpace(path) ||
+                    string.Equals(profile.ExecutablePath, path, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                profile.ExecutablePath = path;
+                changed = true;
+            }
+        }
+
+        if (changed)
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        return changed;
     }
 
     public void ResetAllToDefaults()

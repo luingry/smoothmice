@@ -1,19 +1,19 @@
-// Polyfills para C# 9+ features quando targeting .NET Framework 4.8.
-// Este ficheiro é incluído em todos os projetos via Directory.Build.props.
-// Não remover: necessário para records, init setters, e outros features do compilador.
+// Polyfills for C# 9+ features when targeting .NET Framework 4.8.
+// This file is included in every project via Directory.Build.props.
+// Do not remove: required for records, init setters, and other compiler features.
 
 #if NETFRAMEWORK
 namespace System.Runtime.CompilerServices
 {
-    // Necessário para `record` types e `init` setters (C# 9+).
+    // Required for `record` types and `init` setters (C# 9+).
     internal static class IsExternalInit { }
 }
 
 namespace SmoothMice
 {
     /// <summary>
-    /// Substituto de <c>Environment.TickCount64</c> (apenas .NET 5+).
-    /// Devolve millisegundos monotónicos desde o arranque do processo.
+    /// Replacement for <c>Environment.TickCount64</c> (.NET 5+ only).
+    /// Returns monotonic milliseconds since process start.
     /// </summary>
     internal static class EnvironmentEx
     {

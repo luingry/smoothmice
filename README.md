@@ -42,7 +42,7 @@ Self-contained publish (for installer payload). In Git Bash, prefer explicit MSB
 dotnet publish src/SmoothMice.App/SmoothMice.App.csproj -c Release -p:PublishDebugSymbols=false
 ```
 
-Published binaries: `src/SmoothMice.App/bin/Release/net48/publish/SmoothMice-{Version}.exe` (o `{Version}` vem de [Directory.Build.props](Directory.Build.props); o instalador Inno copia-o como `SmoothMice.exe` para `{app}`).
+Published binaries: `src/SmoothMice.App/bin/Release/net48/publish/SmoothMice-{Version}.exe` (`{Version}` comes from [Directory.Build.props](Directory.Build.props); the Inno installer copies it as `SmoothMice.exe` into `{app}`).
 
 ## Tests
 
@@ -50,25 +50,25 @@ Published binaries: `src/SmoothMice.App/bin/Release/net48/publish/SmoothMice-{Ve
 dotnet test SmoothMice.sln -c Release
 ```
 
-## Diagnóstico de pulsos da roda
+## Wheel pulse diagnostics
 
-Para inspecionar os pulsos físicos crus recebidos pelo hook, clique em **Monitorar scroll** no rodapé do SmoothMice. A janela não modal mostra em tempo real cada pulso antes da suavização: tempo relativo e UTC, eixo, delta/direção, intervalo desde o pulso anterior do mesmo eixo, contagem na janela de 120 ms e marcadores de rajada/reversão.
+To inspect the raw physical pulses the hook receives, click **Scroll logs** at the bottom of the SmoothMice window. The modeless window shows each pulse live, before smoothing: relative and UTC time, axis, delta/direction, interval since the previous pulse on the same axis, the count within a 120 ms window, and burst/reversal markers.
 
-Use **Limpar** para zerar linhas, totais e análise antes de iniciar um teste controlado. A visualização mantém no máximo os 500 pulsos mais recentes; sob sobrecarga, pulsos antigos ou que excederem a fila local são descartados e o status informa o total. Esse modo não cria arquivo nem inicia o writer de diagnóstico.
+Use **Clear** to reset rows, totals, and analysis before starting a controlled test. The view keeps at most the 500 most recent pulses; under overload, old pulses or those exceeding the local queue are dropped and the status shows the total. This mode creates no file and does not start the diagnostics writer.
 
-O marcador **Rajada** aparece em cada pulso que completa ou permanece em uma janela de 4 ou mais pulsos do mesmo eixo em 120 ms — portanto o total exibido é de *pulsos marcados*, não de episódios de rajada distintos. **Reversão** marca uma mudança de direção no mesmo eixo em até 150 ms. Ambos são heurísticas para localizar trechos que merecem comparação com o movimento físico da roda; não provam, sozinhos, defeito de hardware. Teste também em outro aplicativo/porta ou computador antes de concluir a causa.
+The **Burst** marker appears on every pulse that completes or stays within a window of 4 or more same-axis pulses in 120 ms — so the total shown counts *marked pulses*, not distinct burst episodes. **Reversal** marks a direction change on the same axis within 150 ms. Both are heuristics for finding stretches worth comparing against the wheel's physical movement; on their own they do not prove a hardware defect. Also test in another app, port, or computer before concluding on a cause.
 
-Para persistir a mesma captura em NDJSON, inicie adicionalmente com:
+To also persist the same capture as NDJSON, start with:
 
 ```powershell
 dotnet run --project src/SmoothMice.App/SmoothMice.App.csproj -c Release -- --scroll-log
 ```
 
-Cada execução com a opção cria um arquivo NDJSON por sessão em `%LOCALAPPDATA%\SmoothMice\Diagnostics` (por exemplo, `scroll-pulses-...ndjson`). Sem `--scroll-log`, não há arquivo nem thread de persistência. O arquivo pode coexistir com a janela ao vivo; ambos recebem o mesmo pulso físico. Pulsos marcados pelo Windows como injetados (`LLMHF_INJECTED`), incluindo os gerados pelo SmoothMice, continuam excluídos antes do registro.
+Each run with the option creates one NDJSON file per session in `%LOCALAPPDATA%\SmoothMice\Diagnostics` (for example, `scroll-pulses-...ndjson`). Without `--scroll-log` there is no file and no persistence thread. The file can coexist with the live window; both receive the same physical pulse. Pulses Windows flags as injected (`LLMHF_INJECTED`), including those SmoothMice generates, are excluded before logging.
 
-Há uma linha inicial com os limiares e uma linha por pulso: `utc` e `monotonic_ticks`, `axis`, `delta`/`direction`, `interval_ms` desde o pulso anterior do mesmo eixo, `burst_120ms_count`, `short_burst`, `rapid_reversal`, `shift` e a posição de tela `x`/`y`. A linha final informa `records_written` e `dropped_pulses`. A fila é limitada a 4.096 pulsos e o arquivo a 100.000 linhas de pulso; se houver sobrecarga, o descarte aparece no resumo final para não atrasar o hook.
+There is a header line with the thresholds and one line per pulse: `utc` and `monotonic_ticks`, `axis`, `delta`/`direction`, `interval_ms` since the previous pulse on the same axis, `burst_120ms_count`, `short_burst`, `rapid_reversal`, `shift`, and the screen position `x`/`y`. The last line reports `records_written` and `dropped_pulses`. The queue is capped at 4,096 pulses and the file at 100,000 pulse lines; under overload, drops show up in the final summary so the hook is never delayed.
 
-`short_burst` e `rapid_reversal` usam os mesmos critérios apresentados na janela ao vivo.
+`short_burst` and `rapid_reversal` use the same criteria as the live window.
 
 ## Manual smoke tests (recommended)
 
@@ -91,15 +91,15 @@ Há uma linha inicial com os limiares e uma linha por pulso: `utc` e `monotonic_
 
 Or double-click `installer\build-installer.cmd` (opens a window; pauses at the end).
 
-**Instalador por defeito** (`.\installer\build-installer.ps1`): publica para **.NET Framework 4.8** sem runtime bundling e instala o `SmoothMice-{Version}.exe` com as DLLs necessárias. O .NET Framework 4.8 já vem no Windows 10/11; após instalar, o ficheiro em disco continua `SmoothMice.exe`.
+**Default installer** (`.\installer\build-installer.ps1`): publishes for **.NET Framework 4.8** without runtime bundling and installs `SmoothMice-{Version}.exe` with the required DLLs. .NET Framework 4.8 ships with Windows 10/11; after install, the file on disk is still `SmoothMice.exe`.
 
 ```powershell
 .\installer\build-installer.ps1
 ```
 
-Output: `artifacts\installer\SmoothMice_Setup_{version}.exe` — o `version` é o MSBuild `Version` em [Directory.Build.props](Directory.Build.props) (o script [installer/build-installer.ps1](installer/build-installer.ps1) passa-o ao Inno). Histórico por versão: [release-notes.md](release-notes.md).
+Output: `artifacts\installer\SmoothMice_Setup_{version}.exe` — `version` is the MSBuild `Version` in [Directory.Build.props](Directory.Build.props) (the [installer/build-installer.ps1](installer/build-installer.ps1) script passes it to Inno). Per-version history: [release-notes.md](release-notes.md).
 
-Manual steps: `dotnet publish` as in [installer/build-installer.ps1](installer/build-installer.ps1), then `ISCC.exe /DMyAppVersion=x.y.z /DMyPublishedExe=SmoothMice-x.y.z.exe installer\SmoothMice.Installer.iss` (valores alinhados a `Directory.Build.props`), or use the script.
+Manual steps: `dotnet publish` as in [installer/build-installer.ps1](installer/build-installer.ps1), then `ISCC.exe /DMyAppVersion=x.y.z /DMyPublishedExe=SmoothMice-x.y.z.exe installer\SmoothMice.Installer.iss` (values matching `Directory.Build.props`), or use the script.
 
 ## Repository
 

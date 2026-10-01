@@ -393,7 +393,7 @@
 
 ## 2026-09-20 — Game bypass did not recognize the captured Techland game window and the installed preference was false
 
-- Symptom: with “Não ativar em jogos” reportedly enabled, Dying Light: The Beast exposed root class `techland_game_class` while foreground and fullscreen/borderless, but smoothing continued; the installed `settings.json` recorded `doNotActivateInGames: false`.
+- Symptom: with “Do not activate in games” (then labelled in Portuguese) reportedly enabled, Dying Light: The Beast exposed root class `techland_game_class` while foreground and fullscreen/borderless, but smoothing continued; the installed `settings.json` recorded `doNotActivateInGames: false`.
 - Root cause: `techland_game_class` was absent from the classifier’s strong signals. Separately, the recorded false preference is confirmed, and the prior ViewModel setter is confirmed not to invoke its persistence callback; the exact WPF event ordering or user-flow cause of that installed false value was not reproduced and is not asserted.
 - Solution: accept the specific Techland root class only with the existing foreground-or-fullscreen signal and all exclusions; persist directly from the ViewModel setter after updating `ProfileManager`, instead of relying on `Checked`/`Unchecked` ordering.
 - Prevention: capture real root window classes when extending conservative classifiers, and make global settings that must survive an immediate UI interaction invoke their explicit persistence seam rather than depend solely on routed UI events.
@@ -504,8 +504,8 @@
 
 ## 2026-09-21 — Third mechanism: the 10% hard cutoff itself was miscalibrated, dropped medium-speed responsiveness
 
-- Symptom: after fix #2 above, user reported improvement but a NEW regression: "sinto que os
-  pulsos intermediários não são enviados... 1 a cada dois ticks refletem na rolagem" (every other
+- Symptom: after fix #2 above, user reported improvement but a NEW regression: "it feels like the
+  in-between pulses are not sent... only 1 in every two ticks shows up in the scroll" (every other
   pulse doesn't seem to register), while the physical-pulse logger showed every pulse captured
   correctly — i.e. the regression was on the injected/smoothed output side, not input capture.
 - Root cause: a probe (`Probe_decay_curve`, temporary, not committed) against the exact default
