@@ -4,6 +4,12 @@ Read this file before changing `<Version>` in `Directory.Build.props`. Every new
 
 ---
 
+## 2.2.13 — 2026-10-04
+
+### Startup
+
+- Faster start at Windows sign-in: SmoothMice records the code it compiles while starting and, on the next start, compiles it ahead of time on spare CPU cores (.NET multicore JIT). The profile lives in `%LOCALAPPDATA%\SmoothMice\Jit`; if it is missing or cannot be written, startup behaves exactly as before.
+
 ## 2.2.12 — 2026-10-01
 
 ### In-app updates

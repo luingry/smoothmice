@@ -38,6 +38,26 @@ public partial class App : Application
     private GitHubReleaseUpdateChecker? _updateChecker;
     private readonly SemaphoreSlim _updateCheckGate = new(1, 1);
 
+    /// <summary>
+    /// Multicore JIT replays the previous run's startup JIT on spare cores, so a sign-in start
+    /// competing with every other startup app compiles less on the UI thread. NGen would need
+    /// elevation, which this per-user install never asks for. Any failure just means normal JIT.
+    /// </summary>
+    private static void StartJitProfile()
+    {
+        try
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify);
+            // At sign-in the shell folder can resolve to "", which would root the profile in the working directory.
+            if (string.IsNullOrWhiteSpace(localAppData) || !Path.IsPathRooted(localAppData)) return;
+            var directory = Path.Combine(localAppData, "SmoothMice", "Jit");
+            Directory.CreateDirectory(directory);
+            System.Runtime.ProfileOptimization.SetProfileRoot(directory);
+            System.Runtime.ProfileOptimization.StartProfile("startup.jitprofile");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or NotSupportedException) { }
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -59,6 +79,8 @@ public partial class App : Application
             Shutdown(0);
             return;
         }
+        // Only the surviving instance records: a duplicate that exits at once would overwrite the profile.
+        StartJitProfile();
 
         _repo = new JsonSettingsRepository();
         var loaded = _repo.LoadOrCreate();
