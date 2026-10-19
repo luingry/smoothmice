@@ -32,6 +32,12 @@ public partial class MainWindow
         InitializeComponent();
         TitleMarkIcon.Source = LoadLargestIconFrame();
         VersionLabel.Text = FormatAppVersion();
+        if (App.IsHosted)
+        {
+            // SwissTechKnife starts and updates the hosted app.
+            AutoStartCheck.Visibility = Visibility.Collapsed;
+            UpdatesCard.Visibility = Visibility.Collapsed;
+        }
         Deactivated += MainWindow_OnDeactivated;
         IsVisibleChanged += MainWindow_OnIsVisibleChanged;
         AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler(Numeric_OnTextChanged));

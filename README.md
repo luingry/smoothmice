@@ -101,6 +101,18 @@ Output: `artifacts\installer\SmoothMice_Setup_{version}.exe` — `version` is th
 
 Manual steps: `dotnet publish` as in [installer/build-installer.ps1](installer/build-installer.ps1), then `ISCC.exe /DMyAppVersion=x.y.z /DMyPublishedExe=SmoothMice-x.y.z.exe installer\SmoothMice.Installer.iss` (values matching `Directory.Build.props`), or use the script.
 
+## SwissTechKnife module
+
+`src/SmoothMice.Module` packages SmoothMice as a [SwissTechKnife](https://github.com/luingry/SwissTechKnife) module (`smooth-mice`, activation `startup`). The module is a thin supervisor: it runs the regular app in its own process (`SmoothMice.Hosted.exe --hosted --parent <pid> --data <module data folder>`), so the mouse hook never shares the host's UI thread, GC or crashes. The module page shows the status and an **Abrir SmoothMice** button that opens the usual window.
+
+Hosted mode differences: settings live in the module's data folder (copied once from `%APPDATA%\SmoothMice` on first run); no tray icon, update check or Run-key auto-start (the host owns them); exits with the host or when the module is disabled. The same single-instance mutex as the standalone app keeps the two from hooking the mouse together: while a standalone SmoothMice runs, the module waits and takes over when it exits. The module restarts the app after a crash (at most 3 times a minute).
+
+```powershell
+powershell -File scripts/pack-module.ps1   # artifacts\module\smooth-mice-<ver>.zip + sha256/size
+```
+
+`src/SmoothMice.Module/lib/SwissTechKnife.Sdk.dll` is a compile-only reference copied from a SwissTechKnife build; it is never packaged. Release the zip as a GitHub release asset under a `module-v<ver>` tag created with `--latest=false` (the app's update check reads `releases/latest`), then put its URL, sha256 and size in the host's `catalog/catalog.json`. Every repack changes the hash (zip timestamps), so upload exactly the zip whose hash is in the catalog.
+
 ## Repository
 
 - **Upstream:** https://github.com/luingry/smoothmice  

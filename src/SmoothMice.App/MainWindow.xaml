@@ -138,7 +138,8 @@
                 Padding="12,8"
                 Margin="0,0,0,8">
             <StackPanel>
-                <CheckBox Content="Auto start on login"
+                <CheckBox x:Name="AutoStartCheck"
+                          Content="Auto start on login"
                           IsChecked="{Binding AutoStartOnLogin, Mode=TwoWay}"
                           Checked="PersistCheck_OnChanged"
                           Unchecked="PersistCheck_OnChanged"/>
@@ -321,7 +322,8 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="5"
+        <Border x:Name="UpdatesCard"
+                Grid.Row="5"
                 Background="{DynamicResource Brush.Card}"
                 CornerRadius="10"
                 Padding="12,8"
