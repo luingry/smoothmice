@@ -1,0 +1,9 @@
+{
+  "id": "smooth-mice",
+  "version": "3.0.0",
+  "entryAssembly": "SmoothMice.Module.dll",
+  "entryType": "SmoothMice.Module.SmoothMiceModule",
+  "sdkVersion": 1,
+  "activation": "startup",
+  "loadMode": "memory"
+}

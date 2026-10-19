@@ -24,6 +24,7 @@ public partial class App : Application
         Path.Combine(Path.GetTempPath(), "SmoothMiceLastOtaSetupError.txt");
 
     private SingleInstanceGuard? _instance;
+    private HostedMode? _hosted;
     private JsonSettingsRepository? _repo;
     private ProfileManager? _profiles;
     private ScrollCoordinator? _coordinator;
@@ -43,7 +44,7 @@ public partial class App : Application
     /// competing with every other startup app compiles less on the UI thread. NGen would need
     /// elevation, which this per-user install never asks for. Any failure just means normal JIT.
     /// </summary>
-    private static void StartJitProfile()
+    private static void StartJitProfile(bool hosted)
     {
         try
         {
@@ -53,7 +54,7 @@ public partial class App : Application
             var directory = Path.Combine(localAppData, "SmoothMice", "Jit");
             Directory.CreateDirectory(directory);
             System.Runtime.ProfileOptimization.SetProfileRoot(directory);
-            System.Runtime.ProfileOptimization.StartProfile("startup.jitprofile");
+            System.Runtime.ProfileOptimization.StartProfile(hosted ? "startup.hosted.jitprofile" : "startup.jitprofile");
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or NotSupportedException) { }
     }
@@ -65,10 +66,18 @@ public partial class App : Application
         // Keep process alive when the settings window is closed (hide-to-tray).
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+        // Hosted (SwissTechKnife module): the host owns tray, updates and auto-start.
+        _hosted = HostedMode.TryParse(e.Args);
+        var hosted = _hosted is not null;
+        IsHosted = hosted;
+
         // Before settings load: a duplicate must neither hook input nor save on exit.
-        var postOta = StartupRegistrationService.PostOtaRelaunchMatches(e.Args);
-        var startInTray = StartupRegistrationService.TrayStartupMatches(e.Args) && !postOta;
-        var automaticLaunch = postOta || StartupRegistrationService.TrayStartupMatches(e.Args);
+        var postOta = !hosted && StartupRegistrationService.PostOtaRelaunchMatches(e.Args);
+        var startInTray = hosted
+            ? !_hosted!.ShowOnStart
+            : StartupRegistrationService.TrayStartupMatches(e.Args) && !postOta;
+        var automaticLaunch = hosted || postOta || StartupRegistrationService.TrayStartupMatches(e.Args);
+        // Same mutex in both modes: standalone and hosted SmoothMice never hook the mouse together.
         _instance = SingleInstanceGuard.TryAcquire(
             automaticLaunch ? TimeSpan.FromSeconds(10) : TimeSpan.Zero,
             () => Dispatcher.BeginInvoke(new Action(ShowMainWindow)));
@@ -76,18 +85,25 @@ public partial class App : Application
         {
             if (!automaticLaunch)
                 SingleInstanceGuard.SignalActivate();
-            Shutdown(0);
+            Shutdown(hosted ? HostedMode.AlreadyRunningExitCode : 0);
             return;
         }
         // Only the surviving instance records: a duplicate that exits at once would overwrite the profile.
-        StartJitProfile();
+        StartJitProfile(hosted);
 
-        _repo = new JsonSettingsRepository();
+        if (_hosted is not null)
+        {
+            _hosted.MigrateStandaloneSettings();
+            _hosted.WatchForExit(() => Dispatcher.BeginInvoke(new Action(() => Shutdown(0))));
+        }
+
+        _repo = new JsonSettingsRepository(_hosted?.SettingsPath);
         var loaded = _repo.LoadOrCreate();
         _profiles = new ProfileManager(loaded);
         ApplyTheme(loaded.DarkMode);
 
-        TryNotifyOtaInstallFailureFromLastRun();
+        if (!hosted)
+            TryNotifyOtaInstallFailureFromLastRun();
 
         if (e.Args.Any(arg => string.Equals(arg, "--scroll-log", StringComparison.OrdinalIgnoreCase)))
             _scrollPulseLogger = ScrollPulseLogger.TryStartDefault();
@@ -99,21 +115,24 @@ public partial class App : Application
         var apps = new ActiveAppResolver();
         _coordinator = new ScrollCoordinator(_profiles, _mouseHook, injector, apps);
 
-        _startup = new StartupRegistrationService();
-        _tray = new TrayIconService();
-        _tray.OpenRequested += (_, _) => Current.Dispatcher.Invoke(ShowMainWindow);
-        _tray.ToggleEnableRequested += (_, _) =>
+        if (!hosted)
         {
-            Current.Dispatcher.Invoke(() =>
+            _startup = new StartupRegistrationService();
+            _tray = new TrayIconService();
+            _tray.OpenRequested += (_, _) => Current.Dispatcher.Invoke(ShowMainWindow);
+            _tray.ToggleEnableRequested += (_, _) =>
             {
-                _vm?.ToggleGlobalEnabled();
-            });
-        };
-        _tray.ExitRequested += (_, _) => Shutdown();
+                Current.Dispatcher.Invoke(() =>
+                {
+                    _vm?.ToggleGlobalEnabled();
+                });
+            };
+            _tray.ExitRequested += (_, _) => Shutdown();
+            _updateChecker = new GitHubReleaseUpdateChecker();
+        }
 
-        _updateChecker = new GitHubReleaseUpdateChecker();
         _vm = new MainViewModel(_profiles, Persist, () => { _ = CheckForUpdatesAsync(manual: true); }, ApplyTheme);
-        _tray.SetEnabledMenuText(_profiles.Snapshot.Profiles.FirstOrDefault(p => p.IsGlobal)?.Settings.Enabled ?? true);
+        _tray?.SetEnabledMenuText(_profiles.Snapshot.Profiles.FirstOrDefault(p => p.IsGlobal)?.Settings.Enabled ?? true);
 
         var main = new MainWindow { DataContext = _vm };
         main.Icon = CreateWindowIcon();
@@ -158,7 +177,7 @@ public partial class App : Application
             DispatcherPriority.ApplicationIdle,
             new Action(() =>
             {
-                if (postOta)
+                if (postOta || hosted)
                     return;
                 if (_profiles?.Snapshot is not { } snap)
                     return;
@@ -497,7 +516,7 @@ public partial class App : Application
 
     private void Persist()
     {
-        if (_vm is null || _profiles is null || _repo is null || _coordinator is null || _startup is null)
+        if (_vm is null || _profiles is null || _repo is null || _coordinator is null)
             return;
 
         try
@@ -506,8 +525,8 @@ public partial class App : Application
             var snap = _profiles.Snapshot;
             _repo.Save(snap);
 
-            var exe = Process.GetCurrentProcess().MainModule?.FileName;
-            if (!string.IsNullOrWhiteSpace(exe))
+            // Hosted: the host starts SmoothMice; the standalone Run entry is left as the user set it.
+            if (_startup is not null && Process.GetCurrentProcess().MainModule?.FileName is { Length: > 0 } exe)
                 _startup.SetEnabled(snap.AutoStartOnLogin, exe);
 
             _coordinator.RefreshEnabledState();
@@ -547,11 +566,15 @@ public partial class App : Application
         {
             // Released only after the final settings save, so a successor never loads stale state.
             _instance?.Dispose();
+            _hosted?.Dispose();
             base.OnExit(e);
         }
     }
 
     internal void PersistFromUi() => Persist();
+
+    /// <summary>True when started by the SwissTechKnife module (<c>--hosted</c>).</summary>
+    internal static bool IsHosted { get; private set; }
 
     internal void ShowScrollMonitor(Window owner)
     {
