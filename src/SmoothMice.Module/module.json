@@ -5,5 +5,14 @@
   "entryType": "SmoothMice.Module.SmoothMiceModule",
   "sdkVersion": 1,
   "activation": "startup",
-  "loadMode": "memory"
+  "loadMode": "memory",
+  "releaseNotes": [
+    {
+      "version": "3.0.0",
+      "notes": [
+        "First release as a SwissTechKnife module: starts with it and runs in its own process, so nothing in SwissTechKnife can delay scrolling.",
+        "The module page shows whether SmoothMice is running and opens its window."
+      ]
+    }
+  ]
 }
