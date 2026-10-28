@@ -1,12 +1,19 @@
 {
   "id": "smooth-mice",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "entryAssembly": "SmoothMice.Module.dll",
   "entryType": "SmoothMice.Module.SmoothMiceModule",
   "sdkVersion": 1,
   "activation": "startup",
   "loadMode": "memory",
+  "window": true,
   "releaseNotes": [
+    {
+      "version": "3.1.0",
+      "notes": [
+        "Double-clicking the module's notification-area icon opens the SmoothMice window."
+      ]
+    },
     {
       "version": "3.0.0",
       "notes": [

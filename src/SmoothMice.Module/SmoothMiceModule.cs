@@ -8,7 +8,7 @@ namespace SmoothMice.Module;
 /// SwissTechKnife entry point. SmoothMice keeps its own process and window; the module starts it with the host,
 /// restarts it after a crash, stops it when disabled and opens its window from the module page.
 /// </summary>
-public sealed class SmoothMiceModule : IBackgroundModule
+public sealed class SmoothMiceModule : IBackgroundModule, IModuleWindow
 {
     /// <summary>Folder (inside the package) holding the app build; see scripts/pack-module.ps1.</summary>
     internal const string AppFolder = "app";
@@ -31,6 +31,9 @@ public sealed class SmoothMiceModule : IBackgroundModule
     public void Stop() => _supervisor?.Stop();
 
     public FrameworkElement CreateView() => new ModulePage(_supervisor!, _context!);
+
+    /// <summary>Double click on the module's notification-area icon: opens the SmoothMice window, like the page's button.</summary>
+    public void ShowWindow() => _supervisor?.ShowWindow();
 
     public void Dispose()
     {
